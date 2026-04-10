@@ -538,6 +538,147 @@ def build_module_mermaid(
     return _module_mermaid_html(mermaid_code), mermaid_code
 
 
+# ─── ER diagram helpers ───────────────────────────────────────────────────────
+
+def simplify_iris_type(type_str: str) -> str:
+    """Map a verbose IRIS type declaration to a short ER-friendly label."""
+    t = str(type_str).strip()
+    if not t or t == "nan":
+        return "string"
+    if t.lower().startswith("list"):
+        return "list"
+    m = re.search(r"%(\w+)", t)
+    if m:
+        base = m.group(1).lower()
+        return {
+            "string": "string", "integer": "int", "date": "date",
+            "time": "time", "datetime": "datetime", "boolean": "bool",
+            "float": "float", "double": "float", "decimal": "decimal",
+            "bigint": "bigint", "smallint": "int", "numeric": "numeric",
+        }.get(base, base[:10])
+    if "(" in t:
+        return t.split("(")[0].strip().split(".")[-1][:10].lower()
+    if "." in t or (t and t[0].isupper()):
+        return "ref"
+    return t[:10].lower()
+
+
+def build_er_mermaid(
+    table_names: list,
+    include_fields: bool = True,
+    max_fields: int = 8,
+    cross_module: bool = False,
+    direction: str = "TB",
+) -> tuple:
+    """Build a Mermaid erDiagram for the given table names.
+
+    Args:
+        table_names   : tables to include as primary entities
+        include_fields: show field list inside each entity box
+        max_fields    : cap fields per entity (appends a "…N more" note)
+        cross_module  : also include tables that primary entities reference
+        direction     : Mermaid er layoutDirection ("TB" or "LR")
+
+    Returns (html_string, raw_mermaid_code).
+    """
+    resolved_er = fk[fk["resolve_status"] == "resolved"]
+    primary     = set(table_names)
+
+    # Optionally pull in cross-module referenced tables
+    if cross_module:
+        ext = resolved_er[
+            resolved_er["source_sql_table_name"].isin(primary)
+            & ~resolved_er["target_sql_table_name"].isin(primary)
+            & (resolved_er["source_sql_field_name"] != "")
+        ]["target_sql_table_name"].unique()
+        all_tables = primary | set(ext)
+    else:
+        all_tables = primary
+
+    # Only keep edges where both ends are in all_tables
+    er_edges = resolved_er[
+        resolved_er["source_sql_table_name"].isin(all_tables)
+        & resolved_er["target_sql_table_name"].isin(all_tables)
+        & (resolved_er["source_sql_field_name"] != "")
+    ]
+
+    tbl_class = tables.set_index("sql_table_name")["class_name"].to_dict()
+
+    lines = ["erDiagram"]
+
+    # ── Entity definitions ──
+    for tbl in sorted(all_tables):
+        cn = tbl_class.get(tbl, "")
+        if not cn or not include_fields:
+            lines.append(f"    {tbl} {{")
+            lines.append("    }")
+            continue
+
+        tbl_f = fields[fields["class_name"] == cn].sort_values("member_order")
+        fk_fields = set(
+            er_edges[er_edges["source_sql_table_name"] == tbl]["source_sql_field_name"]
+        )
+        total = len(tbl_f)
+        shown = tbl_f.head(max_fields)
+
+        lines.append(f"    {tbl} {{")
+        for _, fr in shown.iterrows():
+            sf = re.sub(r"[^a-zA-Z0-9_]", "_", str(fr["sql_field_name"]))
+            if not sf or sf == "nan":
+                continue
+            ftype  = simplify_iris_type(str(fr["member_type"]))
+            marker = " FK" if fr["sql_field_name"] in fk_fields else ""
+            desc   = str(fr["description"])[:28].replace('"', "'")
+            comment = f' "{desc}"' if desc and desc != "nan" else ""
+            lines.append(f"        {ftype} {sf}{marker}{comment}")
+        if total > max_fields:
+            lines.append(f'        string _and_{total - max_fields}_more "{total - max_fields} more fields"')
+        lines.append("    }")
+
+    # ── Relationships ──
+    seen_rel: set = set()
+    for _, r in er_edges.iterrows():
+        src   = str(r["source_sql_table_name"])
+        tgt   = str(r["target_sql_table_name"])
+        field = str(r["source_sql_field_name"])
+        card  = str(r.get("relationship_cardinality", ""))
+
+        if src not in all_tables or tgt not in all_tables:
+            continue
+        key = (src, tgt, field[:20])
+        if key in seen_rel:
+            continue
+        seen_rel.add(key)
+
+        arrow = "||--o{" if card == "children" else "}o--||"
+        label = field[:28].replace('"', "'") if field and field != "nan" else "ref"
+        lines.append(f'    {src} {arrow} {tgt} : "{label}"')
+
+    mermaid_code = "\n".join(lines)
+
+    html = f"""<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  body {{ margin:0; padding:14px; background:#1e2130; overflow:auto;
+         font-family:'Segoe UI',sans-serif; }}
+  .mermaid {{ min-height:500px; }}
+  .mermaid svg {{ max-width:100% !important; height:auto; }}
+</style></head><body>
+<pre class="mermaid">{mermaid_code}</pre>
+<script>
+mermaid.initialize({{
+  startOnLoad: true,
+  theme: "dark",
+  er: {{ useMaxWidth: false, layoutDirection: "{direction}", diagramPadding: 24, entityPadding: 12 }},
+  securityLevel: "loose"
+}});
+</script></body></html>"""
+
+    return html, mermaid_code
+
+
 # ─── Load all data ────────────────────────────────────────────────────────────
 
 tables, fields, fk, classes, members = load_data()
@@ -1178,10 +1319,11 @@ elif st.session_state.page == "graph":
 elif st.session_state.page == "analytics":
     st.title("📊 Analytics")
 
-    tab_dep, tab_hub, tab_orphan = st.tabs([
+    tab_dep, tab_hub, tab_orphan, tab_er = st.tabs([
         "🗺️ Module Dependency Map",
         "🏆 Hub Tables",
         "🏝️ Orphan Tables",
+        "📐 ER Diagram",
     ])
 
     # ── TAB 1: Module Dependency Map ─────────────────────────────────────────
@@ -1445,3 +1587,120 @@ elif st.session_state.page == "analytics":
             )
             if orp_evt.selection.rows:
                 nav("detail", table=orp_view.iloc[orp_evt.selection.rows[0]]["sql_table_name"])
+
+    # ── TAB 4: ER Diagram ────────────────────────────────────────────────────
+
+    with tab_er:
+        st.subheader("ER Diagram")
+        st.markdown(
+            "Visualise table schemas and their FK relationships as an entity-relationship diagram."
+        )
+
+        MAX_ER_TABLES = 20
+
+        # ── Scope selector
+        er_scope = st.radio(
+            "Scope", ["By Module", "By Table (1-hop)", "Custom selection"],
+            horizontal=True, key="er_scope",
+        )
+
+        er_tables: list = []
+        center_er_table = None
+
+        if er_scope == "By Module":
+            ec1, ec2 = st.columns([2, 2])
+            with ec1:
+                er_module = st.selectbox(
+                    "Module", sorted(tables["module_name"].unique()), key="er_module"
+                )
+            with ec2:
+                cross_mod = st.checkbox(
+                    "Include cross-module references", value=False, key="er_cross",
+                    help="Also show tables from other modules that are referenced by this module's tables."
+                )
+            mod_tables = tables[tables["module_name"] == er_module]["sql_table_name"].tolist()
+            if len(mod_tables) > MAX_ER_TABLES:
+                st.warning(
+                    f"Module has **{len(mod_tables)}** tables — showing the first {MAX_ER_TABLES} "
+                    f"(sorted by name). Use **Custom selection** to pick specific ones."
+                )
+            er_tables = sorted(mod_tables)[:MAX_ER_TABLES]
+
+        elif er_scope == "By Table (1-hop)":
+            ec1, ec2 = st.columns([3, 1])
+            with ec1:
+                center_er_table = st.selectbox(
+                    "Center table", sorted(tables["sql_table_name"].tolist()), key="er_center_tbl"
+                )
+            with ec2:
+                hop_dir = st.radio("Include", ["Both", "Outgoing", "Incoming"],
+                                   horizontal=False, key="er_hop_dir")
+            cross_mod = False
+
+            resolved_er_hop = fk[fk["resolve_status"] == "resolved"]
+            if hop_dir in ("Both", "Outgoing"):
+                out_tbls = resolved_er_hop[
+                    resolved_er_hop["source_sql_table_name"] == center_er_table
+                ]["target_sql_table_name"].unique().tolist()
+            else:
+                out_tbls = []
+            if hop_dir in ("Both", "Incoming"):
+                in_tbls = resolved_er_hop[
+                    resolved_er_hop["target_sql_table_name"] == center_er_table
+                ]["source_sql_table_name"].unique().tolist()
+            else:
+                in_tbls = []
+
+            connected_er = list({center_er_table} | set(out_tbls) | set(in_tbls))
+            if len(connected_er) > MAX_ER_TABLES:
+                st.warning(
+                    f"**{len(connected_er)}** connected tables — showing center + first "
+                    f"{MAX_ER_TABLES - 1} neighbors. Use **Custom selection** for more control."
+                )
+                neighbors = sorted([t for t in connected_er if t != center_er_table])[:MAX_ER_TABLES - 1]
+                connected_er = [center_er_table] + neighbors
+            er_tables = connected_er
+
+        else:  # Custom selection
+            cross_mod = False
+            er_tables = st.multiselect(
+                "Select tables (max 20)",
+                sorted(tables["sql_table_name"].tolist()),
+                max_selections=MAX_ER_TABLES,
+                key="er_custom_tables",
+            )
+
+        # ── Display options
+        st.markdown("---")
+        do1, do2, do3, do4 = st.columns([2, 1, 1, 1])
+        with do1:
+            show_fields = st.checkbox("Show fields", value=True, key="er_show_fields")
+        with do2:
+            max_f = st.number_input(
+                "Max fields/table", min_value=3, max_value=30, value=8,
+                step=1, key="er_max_fields",
+                disabled=not show_fields,
+            )
+        with do3:
+            er_dir = st.radio("Layout", ["TB", "LR"], horizontal=True, key="er_dir",
+                              help="TB = top-to-bottom, LR = left-to-right")
+        with do4:
+            st.markdown("<br>", unsafe_allow_html=True)
+            draw_er = st.button("Draw", type="primary", use_container_width=True, key="draw_er")
+
+        # ── Render
+        if er_tables:
+            st.caption(f"Entities: **{len(er_tables)}** tables")
+            er_html, er_code = build_er_mermaid(
+                er_tables,
+                include_fields=show_fields,
+                max_fields=int(max_f),
+                cross_module=cross_mod,
+                direction=er_dir,
+            )
+            components.html(er_html, height=700, scrolling=True)
+
+            with st.expander("Raw Mermaid code  ·  paste into mermaid.live or Notion"):
+                st.code(er_code, language="text")
+        else:
+            st.info("Select a module, table, or custom set above to generate the diagram.")
