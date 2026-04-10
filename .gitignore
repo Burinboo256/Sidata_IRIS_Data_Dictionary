@@ -1,0 +1,17 @@
+# Generated output — recreate with Create_JSON.ipynb
+iris_data_dictionary_full.json
+
+# CSV exports — source data lives in the xlsx
+iris_data_dict-*.csv
+
+# User-specific translation file (local data)
+translations.json
+
+# Python
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
