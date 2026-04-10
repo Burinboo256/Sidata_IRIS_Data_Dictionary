@@ -4,6 +4,8 @@ import re
 import tempfile
 
 import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 import streamlit.components.v1 as components
 from pyvis.network import Network
@@ -393,10 +395,104 @@ def schema_to_excel(
     return buf.getvalue()
 
 
+# ─── Analytics helpers ────────────────────────────────────────────────────────
+
+@st.cache_data
+def compute_analytics(_fk_df, _tables_df) -> tuple:
+    """Return (hub_df, orphan_df, dep_counts).
+    hub_df    : every table with incoming/outgoing FK counts
+    orphan_df : tables with zero relationships in both directions
+    dep_counts: cross-module reference counts (source_module, target_module, count)
+    """
+    resolved = _fk_df[_fk_df["resolve_status"] == "resolved"]
+
+    inc = resolved.groupby("target_sql_table_name").size().reset_index(name="incoming")
+    out = (
+        resolved[resolved["source_sql_table_name"] != ""]
+        .groupby("source_sql_table_name").size()
+        .reset_index(name="outgoing")
+    )
+
+    hub = _tables_df[["sql_table_name", "module_name", "module_prefix", "class_description"]].copy()
+    hub = hub.merge(inc, left_on="sql_table_name", right_on="target_sql_table_name", how="left")
+    hub = hub.merge(out, left_on="sql_table_name", right_on="source_sql_table_name", how="left")
+    hub["incoming"] = hub["incoming"].fillna(0).astype(int)
+    hub["outgoing"] = hub["outgoing"].fillna(0).astype(int)
+    hub["total"]    = hub["incoming"] + hub["outgoing"]
+
+    orphan = hub[(hub["incoming"] == 0) & (hub["outgoing"] == 0)].copy()
+
+    # Cross-module dependency counts (exclude self-references)
+    tbl_mod = _tables_df.set_index("sql_table_name")["module_name"].to_dict()
+    fk_mod  = resolved.copy()
+    fk_mod["src_mod"] = fk_mod["source_sql_table_name"].map(tbl_mod)
+    fk_mod["tgt_mod"] = fk_mod["target_sql_table_name"].map(tbl_mod)
+    cross = fk_mod[
+        fk_mod["src_mod"].notna() & fk_mod["tgt_mod"].notna()
+        & (fk_mod["src_mod"] != fk_mod["tgt_mod"])
+    ]
+    dep_counts = (
+        cross.groupby(["src_mod", "tgt_mod"]).size()
+        .reset_index(name="count")
+        .rename(columns={"src_mod": "source_module", "tgt_mod": "target_module"})
+    )
+
+    return hub, orphan, dep_counts
+
+
+def build_module_mermaid(dep_counts: pd.DataFrame, min_refs: int = 1) -> tuple:
+    """Mermaid flowchart of cross-module dependencies.
+    Returns (html_string, raw_mermaid_code).
+    """
+    sig = dep_counts[dep_counts["count"] >= min_refs]
+    mods_in_graph = sorted(set(sig["source_module"]) | set(sig["target_module"]))
+
+    mod_prefix = tables.groupby("module_name")["module_prefix"].first().to_dict()
+    mod_count  = tables.groupby("module_name").size().to_dict()
+
+    lines = ["flowchart LR"]
+    for mod in mods_in_graph:
+        mid    = mermaid_id(mod)
+        prefix = mod_prefix.get(mod, "")
+        cnt    = mod_count.get(mod, 0)
+        lines.append(f'    {mid}["{prefix} · {mod}\\n({cnt} tables)"]')
+
+    seen: set = set()
+    for _, r in sig.sort_values("count", ascending=False).iterrows():
+        sid, tid = mermaid_id(r["source_module"]), mermaid_id(r["target_module"])
+        key = (sid, tid)
+        if key in seen:
+            continue
+        seen.add(key)
+        lines.append(f'    {sid} -->|"{r["count"]} refs"| {tid}')
+
+    mermaid_code = "\n".join(lines)
+    html = f"""<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  body {{ margin:0; padding:14px; background:#1e2130; overflow:auto;
+         font-family:'Segoe UI',sans-serif; }}
+  .mermaid {{ min-height:400px; }}
+  .mermaid svg {{ max-width:100% !important; height:auto; }}
+</style></head><body>
+<pre class="mermaid">{mermaid_code}</pre>
+<script>
+mermaid.initialize({{
+  startOnLoad:true, theme:"dark",
+  flowchart:{{ useMaxWidth:false, htmlLabels:true, curve:"basis", padding:24 }},
+  securityLevel:"loose"
+}});
+</script></body></html>"""
+    return html, mermaid_code
+
+
 # ─── Load all data ────────────────────────────────────────────────────────────
 
 tables, fields, fk, classes, members = load_data()
 COMPLETENESS = compute_completeness(fields)
+HUB_DF, ORPHAN_DF, DEP_COUNTS = compute_analytics(fk, tables)
 
 MODULE_SUMMARY = (
     tables.groupby(["module_name", "module_prefix"])
@@ -416,6 +512,7 @@ for key, default in [
     ("graph_center", None),
     ("graph_depth", 1),
     ("recently_viewed", []),
+    ("analytics_tab", 0),
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
@@ -463,10 +560,11 @@ with st.sidebar:
     st.markdown("---")
 
     pages = {
-        "home":   "🏠  Home",
-        "search": "🔍  Search",
-        "browse": "📁  Browse",
-        "graph":  "🕸️  Graph",
+        "home":      "🏠  Home",
+        "search":    "🔍  Search",
+        "browse":    "📁  Browse",
+        "graph":     "🕸️  Graph",
+        "analytics": "📊  Analytics",
     }
     for pid, label in pages.items():
         is_active = st.session_state.page == pid or (
@@ -1024,3 +1122,199 @@ elif st.session_state.page == "graph":
                 with cg[i // NCOLS][i % NCOLS]:
                     if st.button(tbl, key=f"gn_{tbl}", use_container_width=True):
                         nav("detail", table=tbl)
+
+# ─── ANALYTICS ───────────────────────────────────────────────────────────────
+
+elif st.session_state.page == "analytics":
+    st.title("📊 Analytics")
+
+    tab_dep, tab_hub, tab_orphan = st.tabs([
+        "🗺️ Module Dependency Map",
+        "🏆 Hub Tables",
+        "🏝️ Orphan Tables",
+    ])
+
+    # ── TAB 1: Module Dependency Map ─────────────────────────────────────────
+
+    with tab_dep:
+        st.subheader("Cross-module FK References")
+        st.markdown(
+            "Each cell shows how many resolved FK relationships go **from** the row module "
+            "**to** the column module. Self-references are excluded."
+        )
+
+        if DEP_COUNTS.empty:
+            st.info("No cross-module relationships found.")
+        else:
+            # ── Heatmap
+            dep_pivot = (
+                DEP_COUNTS.pivot(index="source_module", columns="target_module", values="count")
+                .fillna(0).astype(int)
+            )
+            fig_heat = px.imshow(
+                dep_pivot,
+                labels=dict(x="Target Module", y="Source Module", color="FK count"),
+                color_continuous_scale="Blues",
+                text_auto=True,
+                aspect="auto",
+            )
+            fig_heat.update_layout(
+                paper_bgcolor="#1e2130", plot_bgcolor="#1e2130",
+                font=dict(color="#e0e0e0", size=11),
+                margin=dict(l=10, r=10, t=30, b=10),
+                xaxis=dict(tickangle=-35),
+                coloraxis_showscale=False,
+            )
+            fig_heat.update_traces(textfont=dict(size=10))
+            st.plotly_chart(fig_heat, use_container_width=True)
+
+            # ── Mermaid module diagram
+            st.markdown("---")
+            st.subheader("Module Dependency Flowchart")
+
+            mc1, mc2 = st.columns([1, 3])
+            with mc1:
+                min_refs = st.number_input(
+                    "Min references to show edge", min_value=1, value=3,
+                    step=1, key="dep_min_refs",
+                )
+                m_dir = st.radio("Direction", ["LR", "TD"], horizontal=True, key="dep_dir")
+            with mc2:
+                m_html, m_code = build_module_mermaid(DEP_COUNTS, min_refs=int(min_refs))
+                # Rebuild with chosen direction
+                m_code_dir = m_code.replace("flowchart LR", f"flowchart {m_dir}")
+                m_html_dir = m_html.replace(m_code, m_code_dir)
+                components.html(m_html_dir, height=540, scrolling=True)
+
+            with st.expander("Raw Mermaid code  ·  paste into mermaid.live or Notion"):
+                st.code(m_code_dir, language="text")
+
+            # ── Raw dependency table
+            st.markdown("---")
+            st.subheader("Reference counts by module pair")
+            dep_disp = (
+                DEP_COUNTS.rename(columns={
+                    "source_module": "From Module",
+                    "target_module": "To Module",
+                    "count": "FK Count",
+                })
+                .sort_values("FK Count", ascending=False)
+                .reset_index(drop=True)
+            )
+            st.dataframe(dep_disp, width="stretch", hide_index=True)
+
+    # ── TAB 2: Hub Tables ────────────────────────────────────────────────────
+
+    with tab_hub:
+        st.subheader("Most Referenced Tables")
+        st.markdown(
+            "Tables ranked by **incoming** FK references — these are your master-data "
+            "/ lookup tables that the rest of the system depends on."
+        )
+
+        top_n = st.slider("Show top N tables", min_value=10, max_value=50, value=20, step=5, key="hub_n")
+        hub_top = HUB_DF.nlargest(top_n, "incoming").reset_index(drop=True)
+
+        # Bar chart
+        fig_hub = px.bar(
+            hub_top,
+            x="incoming", y="sql_table_name",
+            orientation="h",
+            color="module_name",
+            hover_data={"outgoing": True, "total": True, "module_prefix": True},
+            labels={
+                "incoming": "Incoming References",
+                "sql_table_name": "Table",
+                "module_name": "Module",
+            },
+            color_discrete_sequence=px.colors.qualitative.Set3,
+        )
+        fig_hub.update_layout(
+            paper_bgcolor="#1e2130", plot_bgcolor="#1e2130",
+            font=dict(color="#e0e0e0"),
+            yaxis=dict(autorange="reversed", tickfont=dict(size=11)),
+            legend=dict(bgcolor="rgba(0,0,0,0)"),
+            margin=dict(l=10, r=10, t=10, b=10),
+            height=max(300, top_n * 22),
+        )
+        st.plotly_chart(fig_hub, use_container_width=True)
+
+        # Clickable table
+        st.markdown("---")
+        hub_disp = hub_top[["sql_table_name", "module_prefix", "module_name", "incoming", "outgoing", "total"]].rename(
+            columns={
+                "sql_table_name": "Table", "module_prefix": "Prefix",
+                "module_name": "Module", "incoming": "Incoming ↙",
+                "outgoing": "Outgoing ↗", "total": "Total",
+            }
+        )
+        hub_evt = st.dataframe(
+            hub_disp, width="stretch", hide_index=True,
+            selection_mode="single-row", on_select="rerun", key="hub_sel",
+        )
+        if hub_evt.selection.rows:
+            nav("detail", table=hub_top.iloc[hub_evt.selection.rows[0]]["sql_table_name"])
+
+    # ── TAB 3: Orphan Tables ─────────────────────────────────────────────────
+
+    with tab_orphan:
+        st.subheader("Orphan Tables")
+        st.markdown(
+            "Tables with **zero** resolved FK relationships in either direction — "
+            "no outgoing references and nothing references them."
+        )
+
+        if ORPHAN_DF.empty:
+            st.success("No orphan tables found.")
+        else:
+            oc1, oc2 = st.columns([2, 3])
+            with oc1:
+                orp_modules = ["All modules"] + sorted(ORPHAN_DF["module_name"].unique().tolist())
+                orp_mod = st.selectbox("Filter by module", orp_modules, key="orp_mod")
+            with oc2:
+                orp_filter = st.text_input("Filter by name", placeholder="e.g. RV", key="orp_filter")
+
+            orp_view = ORPHAN_DF.copy()
+            if orp_mod != "All modules":
+                orp_view = orp_view[orp_view["module_name"] == orp_mod]
+            if orp_filter.strip():
+                orp_view = orp_view[
+                    orp_view["sql_table_name"].str.lower().str.contains(orp_filter.strip().lower(), na=False)
+                ]
+            orp_view = orp_view.sort_values("sql_table_name").reset_index(drop=True)
+
+            # Summary by module
+            orp_by_mod = (
+                orp_view.groupby(["module_prefix", "module_name"]).size()
+                .reset_index(name="count")
+                .sort_values("count", ascending=False)
+            )
+            fig_orp = px.bar(
+                orp_by_mod, x="module_prefix", y="count",
+                color="module_name",
+                labels={"module_prefix": "Module", "count": "Orphan tables"},
+                color_discrete_sequence=px.colors.qualitative.Pastel,
+            )
+            fig_orp.update_layout(
+                paper_bgcolor="#1e2130", plot_bgcolor="#1e2130",
+                font=dict(color="#e0e0e0"),
+                showlegend=False,
+                margin=dict(l=10, r=10, t=10, b=10),
+                height=260,
+            )
+            st.plotly_chart(fig_orp, use_container_width=True)
+
+            st.caption(f"{len(orp_view):,} orphan tables shown")
+            orp_disp = orp_view[["sql_table_name", "module_prefix", "module_name", "class_description"]].rename(
+                columns={
+                    "sql_table_name": "Table", "module_prefix": "Prefix",
+                    "module_name": "Module", "class_description": "Description",
+                }
+            ).copy()
+            orp_disp["Description"] = orp_disp["Description"].str.replace("\n", " ").str[:100]
+            orp_evt = st.dataframe(
+                orp_disp, width="stretch", hide_index=True,
+                selection_mode="single-row", on_select="rerun", key="orp_sel",
+            )
+            if orp_evt.selection.rows:
+                nav("detail", table=orp_view.iloc[orp_evt.selection.rows[0]]["sql_table_name"])
