@@ -7,6 +7,9 @@ iris_data_dict-*.csv
 # User-specific translation file (local data)
 translations.json
 
+# Local server config (contains machine-specific IP/port)
+.streamlit/config.toml
+
 # Python
 __pycache__/
 *.py[cod]
