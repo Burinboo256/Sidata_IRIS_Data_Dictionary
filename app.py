@@ -303,6 +303,96 @@ def save_translations(data: dict):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
+# ─── Export helpers ───────────────────────────────────────────────────────────
+
+@st.cache_data
+def schema_to_csv(_fields_df, _fk_df, tbl_name: str, class_name: str) -> bytes:
+    """Return UTF-8 CSV bytes of the table schema (columns + reference target)."""
+    tbl_f = _fields_df[_fields_df["class_name"] == class_name].sort_values("member_order")
+    fk_res = _fk_df[
+        (_fk_df["source_class_name"] == class_name) & (_fk_df["resolve_status"] == "resolved")
+    ]
+    fk_map = (
+        fk_res[fk_res["source_sql_field_name"] != ""]
+        .set_index("source_sql_field_name")["target_sql_table_name"]
+        .to_dict()
+    )
+    rows = [
+        {
+            "Table": tbl_name,
+            "Field": str(r["sql_field_name"]),
+            "Type": str(r["member_type"]),
+            "Description (EN)": str(r["description"]),
+            "Description (TH)": "",
+            "Reference →": fk_map.get(str(r["sql_field_name"]), ""),
+        }
+        for _, r in tbl_f.iterrows()
+    ]
+    return pd.DataFrame(rows).to_csv(index=False).encode("utf-8-sig")
+
+
+@st.cache_data
+def schema_to_excel(
+    _fields_df, _fk_df, _members_df, _tables_df,
+    tbl_name: str, class_name: str,
+) -> bytes:
+    """Return Excel bytes with sheets: Columns, Outgoing FK, Incoming Refs, Parameters, Triggers."""
+    import io
+
+    tbl_f     = _fields_df[_fields_df["class_name"] == class_name].sort_values("member_order")
+    fk_out    = _fk_df[(_fk_df["source_class_name"] == class_name) & (_fk_df["resolve_status"] == "resolved")]
+    fk_in     = _fk_df[(_fk_df["target_sql_table_name"] == tbl_name) & (_fk_df["resolve_status"] == "resolved")]
+    cls_mem   = _members_df[_members_df["class_name"] == class_name]
+
+    fk_map = (
+        fk_out[fk_out["source_sql_field_name"] != ""]
+        .set_index("source_sql_field_name")["target_sql_table_name"]
+        .to_dict()
+    )
+
+    col_rows = [
+        {
+            "Field": str(r["sql_field_name"]),
+            "Type": str(r["member_type"]),
+            "Description (EN)": str(r["description"]),
+            "Description (TH)": "",
+            "Reference →": fk_map.get(str(r["sql_field_name"]), ""),
+        }
+        for _, r in tbl_f.iterrows()
+    ]
+
+    rel_rows = []
+    for _, r in fk_out.iterrows():
+        fn = str(r["source_sql_field_name"]) if str(r["source_sql_field_name"]) not in ("", "nan") else str(r["source_member_name"])
+        rel_rows.append({"Field": fn, "Kind": str(r["evidence_source"]),
+                         "Target Table": str(r["target_sql_table_name"]), "Target PK": str(r["target_pk_fields"])})
+
+    inc_rows = []
+    for _, r in fk_in.iterrows():
+        src_row = _tables_df[_tables_df["class_name"] == r["source_class_name"]]
+        src_name = src_row.iloc[0]["sql_table_name"] if not src_row.empty else str(r["source_class_name"])
+        inc_rows.append({"Source Table": src_name, "Via Field": str(r["source_sql_field_name"]), "Kind": str(r["evidence_source"])})
+
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+        pd.DataFrame(col_rows).to_excel(writer, sheet_name="Columns", index=False)
+        if rel_rows:
+            pd.DataFrame(rel_rows).to_excel(writer, sheet_name="Outgoing FK", index=False)
+        if inc_rows:
+            pd.DataFrame(inc_rows).to_excel(writer, sheet_name="Incoming Refs", index=False)
+        params = cls_mem[cls_mem["member_kind"] == "parameter"]
+        if not params.empty:
+            params[["member_name", "member_type", "description"]].rename(
+                columns={"member_name": "Name", "member_type": "Value", "description": "Description"}
+            ).to_excel(writer, sheet_name="Parameters", index=False)
+        triggers = cls_mem[cls_mem["member_kind"] == "trigger"]
+        if not triggers.empty:
+            triggers[["member_name", "member_decl", "description"]].rename(
+                columns={"member_name": "Name", "member_decl": "Declaration", "description": "Description"}
+            ).to_excel(writer, sheet_name="Triggers", index=False)
+    return buf.getvalue()
+
+
 # ─── Load all data ────────────────────────────────────────────────────────────
 
 tables, fields, fk, classes, members = load_data()
@@ -325,6 +415,7 @@ for key, default in [
     ("browse_filter", ""),
     ("graph_center", None),
     ("graph_depth", 1),
+    ("recently_viewed", []),
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
@@ -332,11 +423,36 @@ for key, default in [
 if "translations" not in st.session_state:
     st.session_state.translations = load_translations()
 
+# ─── URL deep linking ─────────────────────────────────────────────────────────
+# On first load, honour ?table=TABLE_NAME in the URL.
+_url_table = st.query_params.get("table", "")
+if _url_table and st.session_state.page == "home":
+    if _url_table in set(tables["sql_table_name"]):
+        st.session_state.page = "detail"
+        st.session_state.selected_table = _url_table
+        rv = st.session_state.recently_viewed
+        if _url_table in rv:
+            rv.remove(_url_table)
+        rv.insert(0, _url_table)
+        st.session_state.recently_viewed = rv[:10]
+
+# Keep the URL bar in sync with the current table.
+if st.session_state.page == "detail" and st.session_state.selected_table:
+    st.query_params["table"] = st.session_state.selected_table
+elif "table" in st.query_params:
+    del st.query_params["table"]
+
 
 def nav(page: str, table: str = None):
     st.session_state.page = page
     if table is not None:
         st.session_state.selected_table = table
+        if page == "detail":
+            rv = st.session_state.recently_viewed
+            if table in rv:
+                rv.remove(table)
+            rv.insert(0, table)
+            st.session_state.recently_viewed = rv[:10]
     st.rerun()
 
 
@@ -402,6 +518,19 @@ if st.session_state.page == "home":
             if st.button(label, key=f"mod_{i}", use_container_width=True):
                 st.session_state.browse_module = row["module_name"]
                 nav("browse")
+
+    # Recently Viewed
+    if st.session_state.recently_viewed:
+        st.markdown("---")
+        st.subheader("Recently Viewed")
+        rv_list = st.session_state.recently_viewed
+        rv_cols = st.columns(min(len(rv_list), 5))
+        for i, tbl in enumerate(rv_list):
+            tbl_info = tables[tables["sql_table_name"] == tbl]
+            prefix = tbl_info.iloc[0]["module_prefix"] if not tbl_info.empty else ""
+            with rv_cols[i % 5]:
+                if st.button(f"🗃️ {tbl}\n`{prefix}`", key=f"rv_{tbl}", use_container_width=True):
+                    nav("detail", table=tbl)
 
 # ─── SEARCH ───────────────────────────────────────────────────────────────────
 
@@ -545,7 +674,7 @@ elif st.session_state.page in ("browse", "detail"):
             st.markdown("---")
 
             # Header
-            hcol1, hcol2 = st.columns([6, 1])
+            hcol1, hcol2, hcol3 = st.columns([5, 1, 1])
             with hcol1:
                 st.markdown(f"## 🗃️ {tbl_name}")
                 st.markdown(
@@ -553,12 +682,31 @@ elif st.session_state.page in ("browse", "detail"):
                     f'<span class="badge">{tbl_row["module_name"]}</span>',
                     unsafe_allow_html=True,
                 )
+                st.caption(f"🔗 Share: `?table={tbl_name}`")
             with hcol2:
                 score = COMPLETENESS.get(class_name, 0)
                 st.metric("EN Desc", f"{score}%")
                 if st.button("🕸️ Graph", key="goto_graph", use_container_width=True):
                     st.session_state.graph_center = tbl_name
                     nav("graph")
+            with hcol3:
+                st.markdown("<br>", unsafe_allow_html=True)
+                csv_bytes = schema_to_csv(fields, fk, tbl_name, class_name)
+                st.download_button(
+                    "⬇️ CSV", csv_bytes,
+                    file_name=f"{tbl_name}_schema.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                    key=f"dl_csv_{tbl_name}",
+                )
+                xl_bytes = schema_to_excel(fields, fk, members, tables, tbl_name, class_name)
+                st.download_button(
+                    "⬇️ Excel", xl_bytes,
+                    file_name=f"{tbl_name}_schema.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True,
+                    key=f"dl_xl_{tbl_name}",
+                )
 
             if tbl_row["class_description"]:
                 st.info(str(tbl_row["class_description"]).replace("\n", "  \n"))
