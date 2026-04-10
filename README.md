@@ -10,12 +10,17 @@ Built with **Streamlit** and reads directly from `iris_data_dict.xlsx`.
 
 | Feature | Description |
 |---|---|
-| **Browse** | Filter tables by module and name; completeness progress bar per table |
-| **Search** | Full-text search across table names, descriptions, and field names |
+| **Browse** | Filter tables by module and name; EN description completeness progress bar per table |
+| **Search** | Full-text search across table names, descriptions, and field names/types |
 | **Schema view** | Columns with types, descriptions, FK references, parameters & triggers |
-| **Relationship graph** | Interactive network (pyvis) or Mermaid flowchart with module subgraphs |
-| **SQL Builder** | Generate `SELECT` statements with IRIS arrow-syntax examples |
-| **Thai descriptions** | Inline editor to add Thai field descriptions, saved to `translations.json` |
+| **Relationship graph** | Interactive network (pyvis) or Mermaid flowchart with module subgraphs; 1–2 hop depth |
+| **SQL Builder** | Generate `SELECT` statements; IRIS arrow-syntax (`->`) examples for reference fields |
+| **Thai descriptions** | Inline editor to add Thai field descriptions, saved locally to `translations.json` |
+| **Recently Viewed** | Last 10 visited tables shown on the Home page for quick re-access |
+| **URL deep linking** | `?table=TABLE_NAME` in the URL opens any table directly — shareable across the network |
+| **Export schema** | Download any table schema as CSV or multi-sheet Excel (columns, FK, incoming refs, parameters, triggers) |
+
+---
 
 ## Requirements
 
@@ -23,14 +28,55 @@ Built with **Streamlit** and reads directly from `iris_data_dict.xlsx`.
 pip install streamlit pandas pyvis openpyxl
 ```
 
+---
+
 ## Running
 
 ```bash
 streamlit run app.py
 ```
 
-Open `http://localhost:8501` in your browser.  
-To access from other machines on the network, see **Configuration** below.
+Open `http://localhost:8501` in your browser.
+
+---
+
+## Network access (other machines)
+
+By default the app binds to all interfaces (`0.0.0.0`). To reach it from other machines on the network you also need to open the port in Windows Firewall.
+
+**Option A — Command Prompt (run as Administrator):**
+```cmd
+netsh advfirewall firewall add rule name="Streamlit 8501" dir=in action=allow protocol=TCP localport=8501
+```
+
+**Option B — PowerShell (run as Administrator):**
+```powershell
+New-NetFirewallRule -DisplayName "Streamlit 8501" -Direction Inbound -Protocol TCP -LocalPort 8501 -Action Allow
+```
+
+Verify the rule was added:
+```cmd
+netsh advfirewall firewall show rule name="Streamlit 8501"
+```
+
+Once the firewall rule is in place, the app is reachable at `http://<YOUR_IP>:8501`.  
+Find your IP with `ipconfig` — look for **IPv4 Address** under your active network adapter.
+
+> **Note:** Always bind to `0.0.0.0` (not a specific IP) so both `localhost` and the network IP work simultaneously.
+
+---
+
+## URL deep linking
+
+Append `?table=TABLE_NAME` to the server URL to open a specific table directly:
+
+```
+http://10.78.9.107:8501/?table=APC_Vendor
+```
+
+The URL bar updates automatically as you browse — copy it from the browser to share with colleagues.
+
+---
 
 ## Data source
 
@@ -46,6 +92,8 @@ The app reads five sheets from `iris_data_dict.xlsx`:
 
 To regenerate `iris_data_dictionary_full.json` (used by external tools), run `Create_JSON.ipynb`.
 
+---
+
 ## Configuration
 
 Copy the example config and edit as needed:
@@ -56,19 +104,18 @@ cp .streamlit/config.toml.example .streamlit/config.toml
 
 | Setting | Default | Description |
 |---|---|---|
-| `address` | `0.0.0.0` | Bind to all interfaces (use specific IP to restrict) |
+| `address` | `0.0.0.0` | Bind to all interfaces — do **not** set to a specific IP |
 | `port` | `8501` | Port to listen on |
 | `headless` | `true` | Suppress auto-open browser prompt |
 
-To allow access through Windows Firewall (run as Administrator):
-
-```powershell
-New-NetFirewallRule -DisplayName "Streamlit 8501" -Direction Inbound -Protocol TCP -LocalPort 8501 -Action Allow
-```
+---
 
 ## Thai translations
 
-Translations entered via the app are saved to `translations.json` (git-ignored — local to each deployment).
+Translations entered via the app are saved to `translations.json` (git-ignored — local to each deployment).  
+Progress is shown per-table in the **Thai Descriptions** tab and as a total count in the sidebar.
+
+---
 
 ## Project structure
 
@@ -79,5 +126,5 @@ iris_data_dict.xlsx           # Source data (5 sheets)
 .streamlit/
   config.toml.example         # Server config template
   config.toml                 # Local config (git-ignored)
-translations.json             # Thai descriptions (git-ignored, auto-created)
+translations.json             # Thai descriptions (git-ignored, auto-created on first save)
 ```
