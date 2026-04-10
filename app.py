@@ -2,6 +2,7 @@ import json
 import os
 import re
 import tempfile
+from datetime import datetime
 
 import pandas as pd
 import plotly.express as px
@@ -19,47 +20,120 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ─── Custom CSS ──────────────────────────────────────────────────────────────
-
-st.markdown("""
-<style>
-[data-testid="stSidebar"] { background: #0f1117; }
-[data-testid="stSidebar"] * { color: #e0e0e0 !important; }
-
-div[data-testid="column"] .stButton button {
-    background: #1e2130; border: 1px solid #2e3250; border-radius: 8px;
-    text-align: left; padding: 12px; color: #e0e0e0;
-    white-space: pre-line; min-height: 80px;
-}
-div[data-testid="column"] .stButton button:hover {
-    border-color: #4c6ef5; background: #252a40;
-}
-[data-testid="metric-container"] {
-    background: #1e2130; border: 1px solid #2e3250;
-    border-radius: 8px; padding: 16px;
-}
-.badge {
-    display: inline-block; padding: 2px 8px; border-radius: 12px;
-    font-size: 12px; font-weight: 600;
-    background: #1a3a5c; color: #7eb8f7; margin-right: 6px;
-}
-.badge-purple { background: #2d1a5c; color: #b27ef7; }
-.badge-green  { background: #1a3a28; color: #6fcf97; }
-.badge-orange { background: #3a2a1a; color: #f7a96f; }
-hr { border-color: #2e3250; }
-h2, h3 { color: #c5cae9; }
-.graph-legend span {
-    display: inline-block; padding: 3px 10px; border-radius: 4px;
-    font-size: 12px; margin-right: 8px; font-weight: 600;
-}
-</style>
-""", unsafe_allow_html=True)
-
 # ─── Constants ────────────────────────────────────────────────────────────────
 
 EXCEL_PATH = "iris_data_dict.xlsx"
 TRANSLATIONS_PATH = "translations.json"
+TAGS_PATH = "tags.json"
+CHANGELOG_PATH = "changelog.json"
 MAX_GRAPH_NODES = 60
+
+PREDEFINED_TAGS = ["PII", "financial", "deprecated", "master-data", "staging", "lookup", "audit", "critical"]
+
+TAG_COLORS = {
+    "PII":         ("badge-red",    "#c00000"),
+    "financial":   ("badge-green",  "#1a7040"),
+    "deprecated":  ("badge-orange", "#b06000"),
+    "master-data": ("badge-purple", "#6b3fbf"),
+    "critical":    ("badge-red",    "#c00000"),
+}
+
+# ─── Theme helpers ────────────────────────────────────────────────────────────
+
+def _is_dark() -> bool:
+    return st.session_state.get("theme", "dark") == "dark"
+
+def _theme():
+    dark = _is_dark()
+    return {
+        "dark":        dark,
+        "bg":          "#1e2130" if dark else "#ffffff",
+        "sidebar_bg":  "#0f1117" if dark else "#f0f2f6",
+        "sidebar_txt": "#e0e0e0" if dark else "#333333",
+        "card_bg":     "#1e2130" if dark else "#ffffff",
+        "border":      "#2e3250" if dark else "#d0d0d0",
+        "text":        "#e0e0e0" if dark else "#333333",
+        "mermaid":     "dark"    if dark else "default",
+        "pyvis_bg":    "#1e2130" if dark else "#ffffff",
+        "pyvis_font":  "#e0e0e0" if dark else "#333333",
+        "pyvis_stroke":"#1e2130" if dark else "#ffffff",
+        "plotly_bg":   "#1e2130" if dark else "#ffffff",
+        "plotly_font": "#e0e0e0" if dark else "#333333",
+        "hover_bg":    "#252a40" if dark else "#f0f4ff",
+    }
+
+# ─── Dynamic CSS ─────────────────────────────────────────────────────────────
+
+def _apply_css():
+    t = _theme()
+    dark = t["dark"]
+    if dark:
+        css = f"""
+[data-testid="stSidebar"] {{ background: {t["sidebar_bg"]}; }}
+[data-testid="stSidebar"] * {{ color: {t["sidebar_txt"]} !important; }}
+div[data-testid="column"] .stButton button {{
+    background: {t["card_bg"]}; border: 1px solid {t["border"]}; border-radius: 8px;
+    text-align: left; padding: 12px; color: {t["text"]};
+    white-space: pre-line; min-height: 80px;
+}}
+div[data-testid="column"] .stButton button:hover {{
+    border-color: #4c6ef5; background: {t["hover_bg"]};
+}}
+[data-testid="metric-container"] {{
+    background: {t["card_bg"]}; border: 1px solid {t["border"]};
+    border-radius: 8px; padding: 16px;
+}}
+.badge {{
+    display: inline-block; padding: 2px 8px; border-radius: 12px;
+    font-size: 12px; font-weight: 600;
+    background: #1a3a5c; color: #7eb8f7; margin-right: 6px;
+}}
+.badge-purple {{ background: #2d1a5c; color: #b27ef7; }}
+.badge-green  {{ background: #1a3a28; color: #6fcf97; }}
+.badge-orange {{ background: #3a2a1a; color: #f7a96f; }}
+.badge-red    {{ background: #3a1a1a; color: #f76f6f; }}
+hr {{ border-color: {t["border"]}; }}
+h2, h3 {{ color: #c5cae9; }}
+.graph-legend span {{
+    display: inline-block; padding: 3px 10px; border-radius: 4px;
+    font-size: 12px; margin-right: 8px; font-weight: 600;
+}}
+"""
+    else:
+        css = f"""
+[data-testid="stSidebar"] {{ background: {t["sidebar_bg"]}; }}
+[data-testid="stSidebar"] * {{ color: {t["sidebar_txt"]} !important; }}
+div[data-testid="column"] .stButton button {{
+    background: #ffffff; border: 1px solid {t["border"]}; border-radius: 8px;
+    text-align: left; padding: 12px; color: {t["text"]};
+    white-space: pre-line; min-height: 80px;
+}}
+div[data-testid="column"] .stButton button:hover {{
+    border-color: #4c6ef5; background: {t["hover_bg"]};
+}}
+[data-testid="metric-container"] {{
+    background: #ffffff; border: 1px solid {t["border"]};
+    border-radius: 8px; padding: 16px;
+}}
+.badge {{
+    display: inline-block; padding: 2px 8px; border-radius: 12px;
+    font-size: 12px; font-weight: 600;
+    background: #dce8ff; color: #1a5cbf; margin-right: 6px;
+}}
+.badge-purple {{ background: #ebe0ff; color: #6b3fbf; }}
+.badge-green  {{ background: #d0f0e0; color: #1a7040; }}
+.badge-orange {{ background: #fff0d0; color: #b06000; }}
+.badge-red    {{ background: #ffe0e0; color: #c00000; }}
+hr {{ border-color: {t["border"]}; }}
+h2, h3 {{ color: #333333; }}
+.graph-legend span {{
+    display: inline-block; padding: 3px 10px; border-radius: 4px;
+    font-size: 12px; margin-right: 8px; font-weight: 600;
+}}
+"""
+    st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
+
+_apply_css()
 
 # ─── Data loading ─────────────────────────────────────────────────────────────
 
@@ -143,9 +217,10 @@ def collect_graph_data(center_table: str, depth: int, _fk_df, _tables_df) -> tup
 
 def build_pyvis_html(center_table: str, nodes_dict: dict, edges: list) -> str:
     """Render collected graph data as an interactive pyvis network."""
+    t = _theme()
     net = Network(
         height="560px", width="100%", directed=True,
-        bgcolor="#1e2130", font_color="#e0e0e0",
+        bgcolor=t["pyvis_bg"], font_color=t["pyvis_font"],
     )
     COLORS = {"center": "#4c6ef5", "out": "#6fcf97", "in": "#f7a96f"}
     SIZES  = {"center": 40, "out": 22, "in": 22}
@@ -155,7 +230,7 @@ def build_pyvis_html(center_table: str, nodes_dict: dict, edges: list) -> str:
             name, label=name,
             color=COLORS[role], size=SIZES[role],
             title=f"<b>{name}</b>",
-            font={"size": 11, "color": "#e0e0e0", "strokeWidth": 3, "strokeColor": "#1e2130"},
+            font={"size": 11, "color": t["pyvis_font"], "strokeWidth": 3, "strokeColor": t["pyvis_stroke"]},
         )
 
     added_edges: set = set()
@@ -170,7 +245,7 @@ def build_pyvis_html(center_table: str, nodes_dict: dict, edges: list) -> str:
             label=label if len(label) <= 22 else "",
             color={"color": "#5a6278", "highlight": "#4c6ef5"},
             arrows="to",
-            font={"size": 9, "strokeWidth": 2, "strokeColor": "#1e2130"},
+            font={"size": 9, "strokeWidth": 2, "strokeColor": t["pyvis_stroke"]},
         )
 
     net.set_options("""{
@@ -208,6 +283,7 @@ def build_mermaid_html(
     """Render collected graph data as a Mermaid flowchart.
     Returns (html_string, raw_mermaid_code).
     """
+    t = _theme()
     tbl_to_module = tables.set_index("sql_table_name")["module_name"].to_dict()
     tbl_to_prefix = tables.set_index("sql_table_name")["module_prefix"].to_dict()
 
@@ -261,7 +337,7 @@ def build_mermaid_html(
 <style>
   body {{
     margin: 0; padding: 14px;
-    background: #1e2130; overflow: auto;
+    background: {t["bg"]}; overflow: auto;
     font-family: 'Segoe UI', sans-serif;
   }}
   .mermaid {{ min-height: 420px; }}
@@ -273,7 +349,7 @@ def build_mermaid_html(
 <script>
 mermaid.initialize({{
   startOnLoad: true,
-  theme: "dark",
+  theme: "{t["mermaid"]}",
   flowchart: {{
     useMaxWidth: false,
     htmlLabels: true,
@@ -293,6 +369,8 @@ def extract_storage(class_decl: str) -> str:
     return m.group(1) if m else "Default"
 
 
+# ─── Persistence helpers ──────────────────────────────────────────────────────
+
 def load_translations() -> dict:
     if os.path.exists(TRANSLATIONS_PATH):
         with open(TRANSLATIONS_PATH, "r", encoding="utf-8") as f:
@@ -303,6 +381,37 @@ def load_translations() -> dict:
 def save_translations(data: dict):
     with open(TRANSLATIONS_PATH, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def load_tags() -> dict:
+    if os.path.exists(TAGS_PATH):
+        with open(TAGS_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+
+def save_tags(data: dict):
+    with open(TAGS_PATH, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def load_changelog() -> list:
+    if os.path.exists(CHANGELOG_PATH):
+        with open(CHANGELOG_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return []
+
+
+def append_changelog(action: str, table: str, details: str):
+    log = load_changelog()
+    log.insert(0, {
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "action": action,
+        "table": table,
+        "details": details,
+    })
+    with open(CHANGELOG_PATH, "w", encoding="utf-8") as f:
+        json.dump(log[:1000], f, ensure_ascii=False, indent=2)
 
 
 # ─── Export helpers ───────────────────────────────────────────────────────────
@@ -323,7 +432,8 @@ def schema_to_csv(_fields_df, _fk_df, tbl_name: str, class_name: str) -> bytes:
         {
             "Table": tbl_name,
             "Field": str(r["sql_field_name"]),
-            "Type": str(r["member_type"]),
+            "IRIS Type": str(r["member_type"]),
+            "MSSQL Type": iris_to_mssql(str(r["member_type"])),
             "Description (EN)": str(r["description"]),
             "Description (TH)": "",
             "Reference →": fk_map.get(str(r["sql_field_name"]), ""),
@@ -355,7 +465,8 @@ def schema_to_excel(
     col_rows = [
         {
             "Field": str(r["sql_field_name"]),
-            "Type": str(r["member_type"]),
+            "IRIS Type": str(r["member_type"]),
+            "MSSQL Type": iris_to_mssql(str(r["member_type"])),
             "Description (EN)": str(r["description"]),
             "Description (TH)": "",
             "Reference →": fk_map.get(str(r["sql_field_name"]), ""),
@@ -441,12 +552,13 @@ def compute_analytics(_fk_df, _tables_df) -> tuple:
 
 
 def _module_mermaid_html(mermaid_code: str) -> str:
+    t = _theme()
     return f"""<!DOCTYPE html>
 <html><head>
 <meta charset="utf-8">
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <style>
-  body {{ margin:0; padding:14px; background:#1e2130; overflow:auto;
+  body {{ margin:0; padding:14px; background:{t["bg"]}; overflow:auto;
          font-family:'Segoe UI',sans-serif; }}
   .mermaid {{ min-height:400px; }}
   .mermaid svg {{ max-width:100% !important; height:auto; }}
@@ -454,7 +566,7 @@ def _module_mermaid_html(mermaid_code: str) -> str:
 <pre class="mermaid">{mermaid_code}</pre>
 <script>
 mermaid.initialize({{
-  startOnLoad:true, theme:"dark",
+  startOnLoad:true, theme:"{t["mermaid"]}",
   flowchart:{{ useMaxWidth:false, htmlLabels:true, curve:"basis", padding:24 }},
   securityLevel:"loose"
 }});
@@ -538,7 +650,7 @@ def build_module_mermaid(
     return _module_mermaid_html(mermaid_code), mermaid_code
 
 
-# ─── ER diagram helpers ───────────────────────────────────────────────────────
+# ─── Type helpers ─────────────────────────────────────────────────────────────
 
 def simplify_iris_type(type_str: str) -> str:
     """Map a verbose IRIS type declaration to a short ER-friendly label."""
@@ -563,6 +675,47 @@ def simplify_iris_type(type_str: str) -> str:
     return t[:10].lower()
 
 
+def iris_to_mssql(type_str: str) -> str:
+    """Map an IRIS persistent class type to the closest MS SQL Server type."""
+    t = str(type_str).strip()
+    if not t or t == "nan":
+        return "NVARCHAR(255)"
+    if t.lower().startswith("list"):
+        return "NVARCHAR(MAX)"
+    maxlen_m = re.search(r"MAXLEN\s*=\s*(\d+)", t, re.IGNORECASE)
+    maxlen = int(maxlen_m.group(1)) if maxlen_m else None
+    m = re.search(r"%(\w+)", t)
+    if m:
+        base = m.group(1).lower()
+        mapping = {
+            "string":    f"NVARCHAR({maxlen})" if maxlen else "NVARCHAR(255)",
+            "integer":   "INT",
+            "smallint":  "SMALLINT",
+            "bigint":    "BIGINT",
+            "tinyint":   "TINYINT",
+            "date":      "DATE",
+            "time":      "TIME",
+            "datetime":  "DATETIME2",
+            "timestamp": "DATETIME2",
+            "boolean":   "BIT",
+            "float":     "FLOAT",
+            "double":    "FLOAT",
+            "decimal":   "DECIMAL(18,4)",
+            "numeric":   "NUMERIC(18,4)",
+            "currency":  "MONEY",
+            "binary":    "VARBINARY(MAX)",
+            "stream":    "VARBINARY(MAX)",
+            "globalcharacterstream": "NVARCHAR(MAX)",
+            "globalcharacterbinarystream": "VARBINARY(MAX)",
+        }
+        return mapping.get(base, "NVARCHAR(255)")
+    if "." in t or (t and t[0].isupper()):
+        return "BIGINT"   # FK reference — stored as ID
+    return "NVARCHAR(255)"
+
+
+# ─── ER diagram helpers ───────────────────────────────────────────────────────
+
 def build_er_mermaid(
     table_names: list,
     include_fields: bool = True,
@@ -581,6 +734,7 @@ def build_er_mermaid(
 
     Returns (html_string, raw_mermaid_code).
     """
+    t = _theme()
     resolved_er = fk[fk["resolve_status"] == "resolved"]
     primary     = set(table_names)
 
@@ -661,7 +815,7 @@ def build_er_mermaid(
 <meta charset="utf-8">
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <style>
-  body {{ margin:0; padding:14px; background:#1e2130; overflow:auto;
+  body {{ margin:0; padding:14px; background:{t["bg"]}; overflow:auto;
          font-family:'Segoe UI',sans-serif; }}
   .mermaid {{ min-height:500px; }}
   .mermaid svg {{ max-width:100% !important; height:auto; }}
@@ -670,7 +824,7 @@ def build_er_mermaid(
 <script>
 mermaid.initialize({{
   startOnLoad: true,
-  theme: "dark",
+  theme: "{t["mermaid"]}",
   er: {{ useMaxWidth: false, layoutDirection: "{direction}", diagramPadding: 24, entityPadding: 12 }},
   securityLevel: "loose"
 }});
@@ -704,12 +858,16 @@ for key, default in [
     ("graph_depth", 1),
     ("recently_viewed", []),
     ("analytics_tab", 0),
+    ("theme", "dark"),
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
 
 if "translations" not in st.session_state:
     st.session_state.translations = load_translations()
+
+if "tags" not in st.session_state:
+    st.session_state.tags = load_tags()
 
 # ─── URL deep linking ─────────────────────────────────────────────────────────
 # On first load, honour ?table=TABLE_NAME in the URL.
@@ -756,6 +914,7 @@ with st.sidebar:
         "browse":    "📁  Browse",
         "graph":     "🕸️  Graph",
         "analytics": "📊  Analytics",
+        "changelog": "📋  Changelog",
     }
     for pid, label in pages.items():
         is_active = st.session_state.page == pid or (
@@ -780,6 +939,13 @@ with st.sidebar:
     trans_count = sum(len(v) for v in st.session_state.translations.values())
     total_fields = len(fields)
     st.caption(f"🇹🇭 TH Translations: **{trans_count:,}** / {total_fields:,} fields")
+
+    # Theme toggle
+    st.markdown("---")
+    theme_label = "☀️ Light Mode" if st.session_state.theme == "dark" else "🌙 Dark Mode"
+    if st.button(theme_label, use_container_width=True, key="theme_toggle"):
+        st.session_state.theme = "light" if st.session_state.theme == "dark" else "dark"
+        st.rerun()
 
 # ─── HOME ─────────────────────────────────────────────────────────────────────
 
@@ -826,7 +992,7 @@ if st.session_state.page == "home":
 elif st.session_state.page == "search":
     st.title("Search")
     query = st.text_input(
-        "Search", placeholder="e.g. vendor, patient, diagnosis code",
+        "Search", placeholder="e.g. vendor, patient, ราคา, invoice amount",
         label_visibility="collapsed",
     )
 
@@ -845,6 +1011,31 @@ elif st.session_state.page == "search":
             | fields["member_type"].str.lower().str.contains(q, na=False)
         )
         matched_fields = fields[f_mask].copy()
+
+        # Also search Thai translations
+        tbl_map = tables.set_index("class_name")["sql_table_name"].to_dict()
+        th_hits = []
+        for class_nm, field_dict in st.session_state.translations.items():
+            for field_nm, thai_txt in field_dict.items():
+                if q in str(thai_txt).lower():
+                    th_hits.append({"class_name": class_nm, "sql_field_name": field_nm, "thai_text": thai_txt})
+        if th_hits:
+            th_df = pd.DataFrame(th_hits)
+            th_df["Table"] = th_df["class_name"].map(tbl_map)
+            # Merge with fields for EN description
+            th_df = th_df.merge(
+                fields[["class_name", "sql_field_name", "description", "member_type"]],
+                on=["class_name", "sql_field_name"], how="left",
+            )
+            # Add to matched_fields if not already there
+            th_field_keys = set(zip(th_df["class_name"], th_df["sql_field_name"]))
+            existing_keys = set(zip(matched_fields["class_name"], matched_fields["sql_field_name"]))
+            new_keys = th_field_keys - existing_keys
+            new_rows = th_df[th_df.apply(lambda r: (r["class_name"], r["sql_field_name"]) in new_keys, axis=1)]
+            if not new_rows.empty:
+                matched_fields = pd.concat([matched_fields, new_rows[matched_fields.columns]], ignore_index=True)
+        else:
+            th_df = pd.DataFrame()
 
         st.markdown(f"**{len(matched_tables)}** tables · **{len(matched_fields)}** fields")
 
@@ -873,15 +1064,20 @@ elif st.session_state.page == "search":
             if matched_fields.empty:
                 st.info("No fields matched.")
             else:
-                tbl_map = tables.set_index("class_name")["sql_table_name"].to_dict()
                 matched_fields = matched_fields.copy()
                 matched_fields["Table"] = matched_fields["class_name"].map(tbl_map)
+                # Attach Thai text column
+                def _get_thai(row):
+                    return st.session_state.translations.get(
+                        row["class_name"], {}
+                    ).get(str(row["sql_field_name"]), "")
+                matched_fields["TH Description"] = matched_fields.apply(_get_thai, axis=1)
                 disp = matched_fields[
-                    ["sql_field_name", "Table", "description", "member_type"]
+                    ["sql_field_name", "Table", "description", "member_type", "TH Description"]
                 ].rename(columns={
-                    "sql_field_name": "Field", "description": "Description", "member_type": "Type",
+                    "sql_field_name": "Field", "description": "EN Description", "member_type": "IRIS Type",
                 }).copy()
-                disp["Type"] = disp["Type"].str[:60]
+                disp["IRIS Type"] = disp["IRIS Type"].str[:60]
                 evt = st.dataframe(disp, width="stretch", hide_index=True,
                                    selection_mode="single-row", on_select="rerun",
                                    key="search_f_sel")
@@ -902,7 +1098,7 @@ elif st.session_state.page in ("browse", "detail"):
         if st.session_state.browse_module in module_options else 0
     )
 
-    col_m, col_f = st.columns([2, 3])
+    col_m, col_f, col_tag = st.columns([2, 3, 2])
     with col_m:
         sel_module = st.selectbox("Module", module_options, index=default_mod_idx, key="browse_mod_select")
         st.session_state.browse_module = sel_module
@@ -910,6 +1106,8 @@ elif st.session_state.page in ("browse", "detail"):
         name_filter = st.text_input("Filter by table name", value=st.session_state.browse_filter,
                                     placeholder="e.g. vendor", key="browse_name_filter")
         st.session_state.browse_filter = name_filter
+    with col_tag:
+        tag_filter = st.selectbox("Filter by tag", ["All"] + PREDEFINED_TAGS, key="browse_tag_filter")
 
     filtered = tables.copy()
     if sel_module != "All modules":
@@ -918,6 +1116,9 @@ elif st.session_state.page in ("browse", "detail"):
         filtered = filtered[
             filtered["sql_table_name"].str.lower().str.contains(name_filter.strip().lower(), na=False)
         ]
+    if tag_filter != "All":
+        tag_tables = {tbl for tbl, tlist in st.session_state.tags.items() if tag_filter in tlist}
+        filtered = filtered[filtered["sql_table_name"].isin(tag_tables)]
     filtered = filtered.sort_values("sql_table_name").reset_index(drop=True)
 
     st.caption(f"{len(filtered):,} tables")
@@ -926,6 +1127,9 @@ elif st.session_state.page in ("browse", "detail"):
         ["sql_table_name", "module_prefix", "module_name", "class_description", "class_name"]
     ].copy()
     disp["Completeness"] = disp["class_name"].map(COMPLETENESS).fillna(0).astype(int)
+    disp["Tags"] = disp["sql_table_name"].map(
+        lambda t: ", ".join(st.session_state.tags.get(t, []))
+    )
     disp = disp.drop(columns=["class_name"]).rename(columns={
         "sql_table_name": "Table", "module_prefix": "Prefix",
         "module_name": "Module", "class_description": "Description",
@@ -966,12 +1170,49 @@ elif st.session_state.page in ("browse", "detail"):
             hcol1, hcol2, hcol3 = st.columns([5, 1, 1])
             with hcol1:
                 st.markdown(f"## 🗃️ {tbl_name}")
-                st.markdown(
+                # Module badges
+                badge_html = (
                     f'<span class="badge badge-purple">{tbl_row["module_prefix"]}</span>'
-                    f'<span class="badge">{tbl_row["module_name"]}</span>',
-                    unsafe_allow_html=True,
+                    f'<span class="badge">{tbl_row["module_name"]}</span>'
                 )
+                # Tag badges
+                tbl_tags = st.session_state.tags.get(tbl_name, [])
+                for tag in tbl_tags:
+                    cls, _ = TAG_COLORS.get(tag, ("badge", "#7eb8f7"))
+                    badge_html += f'<span class="badge {cls}">{tag}</span>'
+                st.markdown(badge_html, unsafe_allow_html=True)
                 st.caption(f"🔗 Share: `?table={tbl_name}`")
+
+                # Tag management
+                with st.expander("🏷️ Manage Tags"):
+                    tc1, tc2 = st.columns([3, 1])
+                    with tc1:
+                        new_tag = st.selectbox(
+                            "Add tag", [t for t in PREDEFINED_TAGS if t not in tbl_tags],
+                            key=f"tag_add_sel_{tbl_name}",
+                        )
+                    with tc2:
+                        st.markdown("<br>", unsafe_allow_html=True)
+                        if st.button("Add", key=f"tag_add_btn_{tbl_name}", use_container_width=True):
+                            tbl_tags = list(tbl_tags) + [new_tag]
+                            st.session_state.tags[tbl_name] = tbl_tags
+                            save_tags(st.session_state.tags)
+                            append_changelog("tag_added", tbl_name, f"Added tag: {new_tag}")
+                            st.rerun()
+                    if tbl_tags:
+                        st.markdown("**Current tags:**")
+                        for tag in tbl_tags:
+                            rm_col, lbl_col = st.columns([1, 5])
+                            with rm_col:
+                                if st.button("✕", key=f"tag_rm_{tbl_name}_{tag}"):
+                                    updated = [t for t in tbl_tags if t != tag]
+                                    st.session_state.tags[tbl_name] = updated
+                                    save_tags(st.session_state.tags)
+                                    append_changelog("tag_removed", tbl_name, f"Removed tag: {tag}")
+                                    st.rerun()
+                            with lbl_col:
+                                st.markdown(f"`{tag}`")
+
             with hcol2:
                 score = COMPLETENESS.get(class_name, 0)
                 st.metric("EN Desc", f"{score}%")
@@ -1021,11 +1262,17 @@ elif st.session_state.page in ("browse", "detail"):
                 .set_index("source_sql_field_name")["target_sql_table_name"]
                 .to_dict()
             )
+            # field → target PK
+            fk_pk_map = (
+                resolved_fk[resolved_fk["source_sql_field_name"] != ""]
+                .set_index("source_sql_field_name")["target_pk_fields"]
+                .to_dict()
+            )
 
             # ── Tabs ────────────────────────────────────────────────────────
 
-            tab_schema, tab_sql, tab_translate, tab_fk_er = st.tabs(
-                ["📋 Schema", "⚙️ SQL Builder", "🇹🇭 Thai Descriptions", "📐 FK Diagram"]
+            tab_schema, tab_sql, tab_translate, tab_fk_er, tab_lineage = st.tabs(
+                ["📋 Schema", "⚙️ SQL Builder", "🇹🇭 Thai Descriptions", "📐 FK Diagram", "🔗 Lineage"]
             )
 
             # ── TAB 1: Schema ────────────────────────────────────────────────
@@ -1036,12 +1283,16 @@ elif st.session_state.page in ("browse", "detail"):
                     col_rows = []
                     for _, fr in tbl_fields.iterrows():
                         sf = str(fr["sql_field_name"])
+                        iris_type = str(fr["member_type"])
                         ref = fk_map.get(sf, "")
+                        ref_pk = fk_pk_map.get(sf, "")
+                        ref_display = f"{ref}.{ref_pk}" if ref and ref_pk and ref_pk not in ("", "nan") else ref
                         col_rows.append({
                             "Field": sf,
-                            "Type": str(fr["member_type"])[:80],
+                            "IRIS Type": iris_type[:60],
+                            "MSSQL Type": iris_to_mssql(iris_type),
                             "Description": str(fr["description"]),
-                            "Reference →": ref,
+                            "FK Reference →": ref_display,
                         })
                     st.dataframe(pd.DataFrame(col_rows), width="stretch", hide_index=True)
                 else:
@@ -1220,6 +1471,10 @@ elif st.session_state.page in ("browse", "detail"):
                         translations[class_name] = new_trans
                         save_translations(translations)
                         st.session_state.translations = translations
+                        append_changelog(
+                            "translation_saved", tbl_name,
+                            f"Saved {len(new_trans)} Thai descriptions"
+                        )
                         st.success(f"Saved {len(new_trans)} Thai descriptions for **{tbl_name}**.")
                         st.rerun()
 
@@ -1282,7 +1537,6 @@ elif st.session_state.page in ("browse", "detail"):
                 _truncated = False
                 if len(candidate_tables) > _MAX_FK_ER:
                     _truncated = True
-                    # Always keep center; fill remaining slots by preference: out first, then in
                     _pool = [t for t in out_tbls if t != tbl_name] + [t for t in in_tbls if t != tbl_name]
                     _seen: set = set()
                     _ordered = []
@@ -1318,6 +1572,105 @@ elif st.session_state.page in ("browse", "detail"):
                     components.html(fk_er_html, height=620, scrolling=True)
                     with st.expander("Raw Mermaid code  ·  paste into mermaid.live or Notion"):
                         st.code(fk_er_code, language="text")
+
+            # ── TAB 5: Lineage ───────────────────────────────────────────────
+
+            with tab_lineage:
+                st.subheader("Column-level Lineage")
+                st.markdown(
+                    "Shows the exact field-to-field paths for FK relationships — "
+                    "which field in this table references which PK in the target table, "
+                    "and which fields in other tables point here."
+                )
+
+                lin_col1, lin_col2 = st.columns(2)
+
+                # ── Upstream: fields in THIS table that are FKs
+                with lin_col1:
+                    st.markdown("### ↗ Upstream (Outgoing FK)")
+                    st.caption(f"Fields in **{tbl_name}** that reference other tables")
+
+                    if resolved_fk.empty:
+                        st.info("No outgoing FK relationships.")
+                    else:
+                        up_rows = []
+                        for _, r in resolved_fk.iterrows():
+                            src_field = str(r["source_sql_field_name"])
+                            if src_field in ("", "nan"):
+                                src_field = str(r["source_member_name"])
+                            tgt_tbl = str(r["target_sql_table_name"])
+                            tgt_pk  = str(r["target_pk_fields"])
+                            # Get IRIS type of the source field
+                            src_f_row = tbl_fields[tbl_fields["sql_field_name"] == src_field]
+                            src_type = iris_to_mssql(str(src_f_row.iloc[0]["member_type"])) if not src_f_row.empty else ""
+                            up_rows.append({
+                                "This Field": src_field,
+                                "MSSQL Type": src_type,
+                                "→ Target Table": tgt_tbl,
+                                "→ Target PK": tgt_pk if tgt_pk != "nan" else "",
+                                "Cardinality": str(r.get("relationship_cardinality", "")),
+                            })
+                        up_df = pd.DataFrame(up_rows).drop_duplicates()
+                        up_evt = st.dataframe(
+                            up_df, width="stretch", hide_index=True,
+                            selection_mode="single-row", on_select="rerun",
+                            key=f"lin_up_{tbl_name}",
+                        )
+                        if up_evt.selection.rows:
+                            nav("detail", table=up_df.iloc[up_evt.selection.rows[0]]["→ Target Table"])
+
+                # ── Downstream: fields in OTHER tables that reference THIS table
+                with lin_col2:
+                    st.markdown("### ↙ Downstream (Incoming FK)")
+                    st.caption(f"Fields in other tables that reference **{tbl_name}**")
+
+                    if incoming.empty:
+                        st.info("No incoming FK relationships.")
+                    else:
+                        down_rows = []
+                        for _, r in incoming.iterrows():
+                            src_tbl_row = tables[tables["class_name"] == r["source_class_name"]]
+                            src_tbl_name = src_tbl_row.iloc[0]["sql_table_name"] if not src_tbl_row.empty else str(r["source_class_name"])
+                            src_field = str(r["source_sql_field_name"])
+                            if src_field in ("", "nan"):
+                                src_field = str(r["source_member_name"])
+                            # Get MSSQL type of source field
+                            src_frow = fields[
+                                (fields["class_name"] == r["source_class_name"]) &
+                                (fields["sql_field_name"] == src_field)
+                            ]
+                            src_type = iris_to_mssql(str(src_frow.iloc[0]["member_type"])) if not src_frow.empty else ""
+                            tgt_pk = str(r["target_pk_fields"])
+                            down_rows.append({
+                                "Source Table": src_tbl_name,
+                                "Source Field": src_field,
+                                "MSSQL Type": src_type,
+                                "→ This PK": tgt_pk if tgt_pk != "nan" else "",
+                                "Cardinality": str(r.get("relationship_cardinality", "")),
+                            })
+                        down_df = pd.DataFrame(down_rows).drop_duplicates()
+                        down_evt = st.dataframe(
+                            down_df, width="stretch", hide_index=True,
+                            selection_mode="single-row", on_select="rerun",
+                            key=f"lin_down_{tbl_name}",
+                        )
+                        if down_evt.selection.rows:
+                            nav("detail", table=down_df.iloc[down_evt.selection.rows[0]]["Source Table"])
+
+                # ── Type reference summary
+                st.markdown("---")
+                st.subheader("Field Type Reference")
+                st.caption("IRIS types and their MS SQL Server equivalents for all fields in this table.")
+                if not tbl_fields.empty:
+                    type_rows = []
+                    for _, fr in tbl_fields.iterrows():
+                        iris_t = str(fr["member_type"])
+                        type_rows.append({
+                            "Field": str(fr["sql_field_name"]),
+                            "IRIS Type": iris_t[:80],
+                            "MS SQL Type": iris_to_mssql(iris_t),
+                        })
+                    st.dataframe(pd.DataFrame(type_rows), width="stretch", hide_index=True)
 
 # ─── GRAPH ────────────────────────────────────────────────────────────────────
 
@@ -1413,6 +1766,7 @@ elif st.session_state.page == "graph":
 # ─── ANALYTICS ───────────────────────────────────────────────────────────────
 
 elif st.session_state.page == "analytics":
+    t = _theme()
     st.title("📊 Analytics")
 
     tab_dep, tab_hub, tab_orphan, tab_er = st.tabs([
@@ -1447,8 +1801,8 @@ elif st.session_state.page == "analytics":
                 aspect="auto",
             )
             fig_heat.update_layout(
-                paper_bgcolor="#1e2130", plot_bgcolor="#1e2130",
-                font=dict(color="#e0e0e0", size=11),
+                paper_bgcolor=t["plotly_bg"], plot_bgcolor=t["plotly_bg"],
+                font=dict(color=t["plotly_font"], size=11),
                 margin=dict(l=10, r=10, t=30, b=10),
                 xaxis=dict(tickangle=-35),
                 coloraxis_showscale=False,
@@ -1497,7 +1851,6 @@ elif st.session_state.page == "analytics":
                         ["Both", "Outgoing →", "← Incoming"],
                         horizontal=True, key="dep_focus_dir",
                     )
-                # Filter to only edges involving center_mod
                 if focus_dir == "Outgoing →":
                     filtered_dep = DEP_COUNTS[DEP_COUNTS["source_module"] == center_mod]
                 elif focus_dir == "← Incoming":
@@ -1523,7 +1876,6 @@ elif st.session_state.page == "analytics":
                         step=1, key="dep_top_n",
                         help="Keep only the N most-connected modules. Reduces clutter."
                     )
-                # Apply top-N filter
                 mod_totals = (
                     DEP_COUNTS.groupby("source_module")["count"].sum()
                     .add(DEP_COUNTS.groupby("target_module")["count"].sum(), fill_value=0)
@@ -1595,8 +1947,8 @@ elif st.session_state.page == "analytics":
             color_discrete_sequence=px.colors.qualitative.Set3,
         )
         fig_hub.update_layout(
-            paper_bgcolor="#1e2130", plot_bgcolor="#1e2130",
-            font=dict(color="#e0e0e0"),
+            paper_bgcolor=t["plotly_bg"], plot_bgcolor=t["plotly_bg"],
+            font=dict(color=t["plotly_font"]),
             yaxis=dict(autorange="reversed", tickfont=dict(size=11)),
             legend=dict(bgcolor="rgba(0,0,0,0)"),
             margin=dict(l=10, r=10, t=10, b=10),
@@ -1661,8 +2013,8 @@ elif st.session_state.page == "analytics":
                 color_discrete_sequence=px.colors.qualitative.Pastel,
             )
             fig_orp.update_layout(
-                paper_bgcolor="#1e2130", plot_bgcolor="#1e2130",
-                font=dict(color="#e0e0e0"),
+                paper_bgcolor=t["plotly_bg"], plot_bgcolor=t["plotly_bg"],
+                font=dict(color=t["plotly_font"]),
                 showlegend=False,
                 margin=dict(l=10, r=10, t=10, b=10),
                 height=260,
@@ -1800,3 +2152,60 @@ elif st.session_state.page == "analytics":
                 st.code(er_code, language="text")
         else:
             st.info("Select a module, table, or custom set above to generate the diagram.")
+
+# ─── CHANGELOG ───────────────────────────────────────────────────────────────
+
+elif st.session_state.page == "changelog":
+    st.title("📋 Changelog")
+    st.markdown(
+        "Audit log of all changes made through this tool — Thai translations saved, "
+        "tags added or removed."
+    )
+
+    log = load_changelog()
+
+    if not log:
+        st.info("No changelog entries yet. Changes will appear here once you save translations or manage tags.")
+    else:
+        # Filter controls
+        fc1, fc2, fc3 = st.columns([2, 2, 2])
+        with fc1:
+            action_options = ["All"] + sorted({e["action"] for e in log})
+            log_action = st.selectbox("Filter by action", action_options, key="cl_action")
+        with fc2:
+            table_options = ["All"] + sorted({e["table"] for e in log if e["table"]})
+            log_table = st.selectbox("Filter by table", table_options, key="cl_table")
+        with fc3:
+            log_search = st.text_input("Search details", placeholder="e.g. PII, 5 Thai", key="cl_search")
+
+        filtered_log = log
+        if log_action != "All":
+            filtered_log = [e for e in filtered_log if e["action"] == log_action]
+        if log_table != "All":
+            filtered_log = [e for e in filtered_log if e["table"] == log_table]
+        if log_search.strip():
+            qs = log_search.strip().lower()
+            filtered_log = [e for e in filtered_log if qs in str(e.get("details", "")).lower() or qs in str(e.get("table", "")).lower()]
+
+        st.caption(f"**{len(filtered_log)}** entries")
+
+        log_df = pd.DataFrame(filtered_log)
+        if not log_df.empty:
+            log_df = log_df[["timestamp", "action", "table", "details"]]
+            log_df.columns = ["Timestamp", "Action", "Table", "Details"]
+            cl_evt = st.dataframe(
+                log_df, width="stretch", hide_index=True,
+                selection_mode="single-row", on_select="rerun", key="cl_sel",
+            )
+            if cl_evt.selection.rows:
+                selected_tbl = filtered_log[cl_evt.selection.rows[0]].get("table", "")
+                if selected_tbl and selected_tbl in set(tables["sql_table_name"]):
+                    nav("detail", table=selected_tbl)
+
+        # Clear changelog
+        st.markdown("---")
+        if st.button("🗑️ Clear all changelog entries", type="secondary", key="cl_clear"):
+            with open(CHANGELOG_PATH, "w", encoding="utf-8") as f:
+                json.dump([], f)
+            st.success("Changelog cleared.")
+            st.rerun()

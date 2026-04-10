@@ -10,17 +10,44 @@ Built with **Streamlit** and reads directly from `iris_data_dict.xlsx`.
 
 | Feature | Description |
 |---|---|
-| **Browse** | Filter tables by module and name; EN description completeness progress bar per table |
-| **Search** | Full-text search across table names, descriptions, and field names/types |
-| **Schema view** | Columns with types, descriptions, FK references, parameters & triggers |
+| **Browse** | Filter tables by module, name, and tag; EN description completeness progress bar per table |
+| **Search** | Full-text search across table names, descriptions, field names/types, and **Thai descriptions** |
+| **Schema view** | Columns with IRIS types, MS SQL equivalent types, descriptions, FK references, parameters & triggers |
 | **FK Diagram** | Per-table ER diagram tab — shows outgoing and incoming FK links with field names as edge labels |
+| **Lineage** | Column-level lineage tab — exact field-to-field FK paths upstream and downstream |
 | **Relationship graph** | Interactive network (pyvis) or Mermaid flowchart with module subgraphs; 1–2 hop depth |
 | **SQL Builder** | Generate `SELECT` statements; IRIS arrow-syntax (`->`) examples for reference fields |
 | **Thai descriptions** | Inline editor to add Thai field descriptions, saved locally to `translations.json` |
+| **Table Tags** | Label tables with PII, financial, deprecated, master-data, staging, lookup, audit, critical |
+| **Changelog** | Audit log of all tag changes and translation saves, with filtering and table navigation |
+| **Type mapping** | IRIS types (`%String`, `%Date`, …) automatically mapped to MS SQL Server equivalents |
 | **Recently Viewed** | Last 10 visited tables shown on the Home page for quick re-access |
 | **URL deep linking** | `?table=TABLE_NAME` in the URL opens any table directly — shareable across the network |
-| **Export schema** | Download any table schema as CSV or multi-sheet Excel (columns, FK, incoming refs, parameters, triggers) |
+| **Export schema** | Download any table schema as CSV or multi-sheet Excel (columns with MSSQL types, FK, incoming refs, parameters, triggers) |
 | **Analytics** | Module Dependency Map, Hub Tables, Orphan Tables, ER Diagram (multi-table scope) |
+| **Dark / Light mode** | Toggle between dark and light themes from the sidebar |
+
+---
+
+## Navigation Guide
+
+Quick reference for where to find every feature in the app:
+
+| Feature | Where to find it |
+|---|---|
+| 🏠 Home | Sidebar → **Home** (Recently Viewed tables shown here) |
+| 🔍 Search | Sidebar → **Search** (searches table names, EN descriptions, field names/types, and Thai descriptions) |
+| 📁 Browse | Sidebar → **Browse** (filter by module, name, and tag; click any row to open detail) |
+| 🕸️ Graph | Sidebar → **Graph** (interactive network or Mermaid flowchart, 1–2 hops) |
+| 📊 Analytics | Sidebar → **Analytics** (Module Dependency Map, Hub Tables, Orphan Tables, ER Diagram) |
+| 📋 Changelog | Sidebar → **Changelog** (audit log of tag and translation changes) |
+| 🏷️ Tags | Browse → click a table → detail header → **🏷️ Manage Tags** expander |
+| 📋 Schema | Browse → click a table → **1st tab "📋 Schema"** (IRIS type, MS SQL type, FK references) |
+| ⚙️ SQL Builder | Browse → click a table → **2nd tab "⚙️ SQL Builder"** |
+| 🇹🇭 Thai Desc | Browse → click a table → **3rd tab "🇹🇭 Thai Descriptions"** |
+| 📐 FK Diagram | Browse → click a table → **4th tab "📐 FK Diagram"** |
+| 🔗 Lineage | Browse → click a table → **5th tab "🔗 Lineage"** (column-level upstream/downstream FK paths) |
+| ☀️ / 🌙 Theme | Bottom of sidebar → **Light Mode / Dark Mode** toggle |
 
 ---
 
@@ -86,6 +113,61 @@ The URL bar updates automatically as you browse — copy it from the browser to 
 
 ---
 
+## Table detail tabs
+
+Each table detail page has five tabs:
+
+| Tab | Description |
+|---|---|
+| **📋 Schema** | Columns with IRIS type, MS SQL type, description, and FK reference (TargetTable.PK). Outgoing and incoming FK expandable sections. |
+| **⚙️ SQL Builder** | Build `SELECT` statements; IRIS arrow-syntax examples for reference fields; ObjectScript access pattern |
+| **🇹🇭 Thai Descriptions** | Inline editor for Thai field descriptions with per-table progress bar |
+| **📐 FK Diagram** | ER diagram of 1-hop FK connections; capped at 25 entities; Outgoing / Incoming / Both filter |
+| **🔗 Lineage** | Column-level lineage: upstream (this table's FK fields → target table + PK) and downstream (which fields in other tables reference this table), both with MS SQL types |
+
+### Table Tags
+
+Each table can be labelled with one or more tags via the **🏷️ Manage Tags** expander in the detail header:
+
+| Tag | Meaning |
+|---|---|
+| `PII` | Contains personally identifiable information |
+| `financial` | Financial / accounting data |
+| `deprecated` | No longer actively used |
+| `master-data` | Reference / lookup data shared across modules |
+| `staging` | Temporary or ETL staging table |
+| `lookup` | Small code/value lookup table |
+| `audit` | Audit trail or change-log table |
+| `critical` | Business-critical — changes require approval |
+
+Tags are saved to `tags.json` and filter in the Browse page. All tag changes are recorded in the Changelog.
+
+---
+
+## Type mapping (IRIS → MS SQL)
+
+The app converts IRIS persistent class types to the closest MS SQL Server equivalents:
+
+| IRIS Type | MS SQL Type |
+|---|---|
+| `%String(MAXLEN=N)` | `NVARCHAR(N)` |
+| `%String` | `NVARCHAR(255)` |
+| `%Integer` | `INT` |
+| `%Date` | `DATE` |
+| `%Time` | `TIME` |
+| `%TimeStamp` / `%DateTime` | `DATETIME2` |
+| `%Boolean` | `BIT` |
+| `%Float` / `%Double` | `FLOAT` |
+| `%Decimal` / `%Numeric` | `DECIMAL(18,4)` |
+| `%Currency` | `MONEY` |
+| `%Binary` / `%Stream` | `VARBINARY(MAX)` |
+| Object reference (FK) | `BIGINT` |
+| List | `NVARCHAR(MAX)` |
+
+MS SQL types appear in the Schema tab, the Lineage tab, and in CSV/Excel exports.
+
+---
+
 ## FK Diagram (per-table)
 
 Each table detail page has a **📐 FK Diagram** tab that renders an entity-relationship diagram showing:
@@ -108,6 +190,17 @@ For hub tables with many connections the diagram is capped at 25 entities; switc
 | **Hub Tables** | Tables ranked by incoming + outgoing FK count |
 | **Orphan Tables** | Tables with no FK relationships at all |
 | **ER Diagram** | Multi-table ER diagram — scope by module, 1-hop from a table, or custom selection (up to 20 tables) |
+
+---
+
+## Changelog
+
+The **📋 Changelog** page records every change made through the app:
+
+- Thai description saves (table name + count of fields saved)
+- Tag additions and removals
+
+Entries are stored in `changelog.json` (up to 1,000 most recent). The page supports filtering by action type, table name, and free-text search. Clicking a row navigates to the relevant table.
 
 ---
 
@@ -143,22 +236,29 @@ cp .streamlit/config.toml.example .streamlit/config.toml
 
 ---
 
-## Thai translations
+## Local data files
 
-Translations entered via the app are saved to `translations.json` (git-ignored — local to each deployment).  
-Progress is shown per-table in the **Thai Descriptions** tab and as a total count in the sidebar.
+These files are git-ignored and created automatically by the app:
+
+| File | Created by | Contents |
+|---|---|---|
+| `translations.json` | Thai Descriptions tab | Thai field descriptions per table |
+| `tags.json` | Manage Tags expander | Tag lists per table |
+| `changelog.json` | Any save action | Audit log entries |
 
 ---
 
 ## Project structure
 
 ```
-app.py                        # Streamlit application
+app.py                        # Streamlit application (~2200 lines)
 requirements.txt              # Python dependencies
 Create_JSON.ipynb             # Notebook: xlsx → JSON export
 iris_data_dict.xlsx           # Source data (5 sheets)
 .streamlit/
   config.toml.example         # Server config template
   config.toml                 # Local config (git-ignored)
-translations.json             # Thai descriptions (git-ignored, auto-created on first save)
+translations.json             # Thai descriptions (git-ignored, auto-created)
+tags.json                     # Table tags (git-ignored, auto-created)
+changelog.json                # Audit log (git-ignored, auto-created)
 ```
