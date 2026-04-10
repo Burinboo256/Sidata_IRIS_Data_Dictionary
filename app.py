@@ -440,34 +440,8 @@ def compute_analytics(_fk_df, _tables_df) -> tuple:
     return hub, orphan, dep_counts
 
 
-def build_module_mermaid(dep_counts: pd.DataFrame, min_refs: int = 1) -> tuple:
-    """Mermaid flowchart of cross-module dependencies.
-    Returns (html_string, raw_mermaid_code).
-    """
-    sig = dep_counts[dep_counts["count"] >= min_refs]
-    mods_in_graph = sorted(set(sig["source_module"]) | set(sig["target_module"]))
-
-    mod_prefix = tables.groupby("module_name")["module_prefix"].first().to_dict()
-    mod_count  = tables.groupby("module_name").size().to_dict()
-
-    lines = ["flowchart LR"]
-    for mod in mods_in_graph:
-        mid    = mermaid_id(mod)
-        prefix = mod_prefix.get(mod, "")
-        cnt    = mod_count.get(mod, 0)
-        lines.append(f'    {mid}["{prefix} · {mod}\\n({cnt} tables)"]')
-
-    seen: set = set()
-    for _, r in sig.sort_values("count", ascending=False).iterrows():
-        sid, tid = mermaid_id(r["source_module"]), mermaid_id(r["target_module"])
-        key = (sid, tid)
-        if key in seen:
-            continue
-        seen.add(key)
-        lines.append(f'    {sid} -->|"{r["count"]} refs"| {tid}')
-
-    mermaid_code = "\n".join(lines)
-    html = f"""<!DOCTYPE html>
+def _module_mermaid_html(mermaid_code: str) -> str:
+    return f"""<!DOCTYPE html>
 <html><head>
 <meta charset="utf-8">
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
@@ -485,7 +459,83 @@ mermaid.initialize({{
   securityLevel:"loose"
 }});
 </script></body></html>"""
-    return html, mermaid_code
+
+
+def build_module_mermaid(
+    dep_counts: pd.DataFrame,
+    direction: str = "LR",
+    collapse_bidir: bool = True,
+    center_module: str = None,
+) -> tuple:
+    """Render pre-filtered dep_counts as a Mermaid module flowchart.
+
+    Args:
+        dep_counts     : already-filtered DataFrame (source_module, target_module, count)
+        direction      : Mermaid direction — "LR" or "TD"
+        collapse_bidir : merge A→B + B→A into a single A↔B edge
+        center_module  : highlight this module node (e.g. focus mode)
+
+    Returns (html_string, raw_mermaid_code).
+    """
+    if dep_counts.empty:
+        code = f"flowchart {direction}\n    empty[\"No data to show\"]"
+        return _module_mermaid_html(code), code
+
+    mod_prefix = tables.groupby("module_name")["module_prefix"].first().to_dict()
+    mod_count  = tables.groupby("module_name").size().to_dict()
+
+    lines = [f"flowchart {direction}"]
+
+    # ── Build edges (optionally collapse bidirectional pairs) ──
+    edges: list[tuple] = []   # (src, tgt, label, is_bidir)
+    seen_pairs: set = set()
+
+    for _, r in dep_counts.sort_values("count", ascending=False).iterrows():
+        src, tgt, cnt = r["source_module"], r["target_module"], int(r["count"])
+        fwd_key = (src, tgt)
+        rev_key = (tgt, src)
+        if fwd_key in seen_pairs or rev_key in seen_pairs:
+            continue
+
+        if collapse_bidir:
+            rev = dep_counts[
+                (dep_counts["source_module"] == tgt) & (dep_counts["target_module"] == src)
+            ]
+            if not rev.empty:
+                rev_cnt = int(rev.iloc[0]["count"])
+                edges.append((src, tgt, f"→ {cnt}  ← {rev_cnt}", True))
+                seen_pairs.add(fwd_key)
+                seen_pairs.add(rev_key)
+                continue
+
+        edges.append((src, tgt, f"{cnt} refs", False))
+        seen_pairs.add(fwd_key)
+
+    # ── Nodes ──
+    mods_in_graph = sorted(
+        {src for src, _, _, _ in edges} | {tgt for _, tgt, _, _ in edges}
+    )
+    for mod in mods_in_graph:
+        mid    = mermaid_id(mod)
+        prefix = mod_prefix.get(mod, "")
+        cnt    = mod_count.get(mod, 0)
+        lines.append(f'    {mid}["{prefix} · {mod}\\n({cnt} tables)"]')
+
+    # ── Edges ──
+    for src, tgt, label, is_bidir in edges:
+        sid, tid = mermaid_id(src), mermaid_id(tgt)
+        arrow = "<-->" if is_bidir else "-->"
+        lines.append(f'    {sid} {arrow}|"{label}"| {tid}')
+
+    # ── Highlight center module ──
+    if center_module and center_module in mods_in_graph:
+        lines.append(
+            f"    style {mermaid_id(center_module)} "
+            "fill:#4c6ef5,color:#fff,stroke:#7eb8f7,stroke-width:3px"
+        )
+
+    mermaid_code = "\n".join(lines)
+    return _module_mermaid_html(mermaid_code), mermaid_code
 
 
 # ─── Load all data ────────────────────────────────────────────────────────────
@@ -1172,22 +1222,99 @@ elif st.session_state.page == "analytics":
             st.markdown("---")
             st.subheader("Module Dependency Flowchart")
 
-            mc1, mc2 = st.columns([1, 3])
-            with mc1:
-                min_refs = st.number_input(
-                    "Min references to show edge", min_value=1, value=3,
-                    step=1, key="dep_min_refs",
+            all_module_names = sorted(
+                set(DEP_COUNTS["source_module"]) | set(DEP_COUNTS["target_module"])
+            )
+
+            # ── Row 1: mode + style options
+            rc1, rc2, rc3, rc4 = st.columns([2, 2, 1, 1])
+            with rc1:
+                view_mode = st.radio(
+                    "View mode", ["🌐 All modules", "🎯 Focus on module"],
+                    horizontal=True, key="dep_mode",
                 )
+            with rc2:
+                collapse_bidir = st.checkbox(
+                    "Collapse bidirectional (A↔B)", value=True, key="dep_bidir",
+                    help="Merge A→B and B→A into one double-headed arrow showing both counts."
+                )
+            with rc3:
                 m_dir = st.radio("Direction", ["LR", "TD"], horizontal=True, key="dep_dir")
-            with mc2:
-                m_html, m_code = build_module_mermaid(DEP_COUNTS, min_refs=int(min_refs))
-                # Rebuild with chosen direction
-                m_code_dir = m_code.replace("flowchart LR", f"flowchart {m_dir}")
-                m_html_dir = m_html.replace(m_code, m_code_dir)
-                components.html(m_html_dir, height=540, scrolling=True)
+            with rc4:
+                st.markdown("<br>", unsafe_allow_html=True)
+
+            # ── Row 2: mode-specific controls
+            is_focus = view_mode.startswith("🎯")
+            center_mod = None
+
+            if is_focus:
+                fc1, fc2 = st.columns([2, 2])
+                with fc1:
+                    center_mod = st.selectbox(
+                        "Center module", all_module_names, key="dep_focus_mod"
+                    )
+                with fc2:
+                    focus_dir = st.radio(
+                        "Show connections",
+                        ["Both", "Outgoing →", "← Incoming"],
+                        horizontal=True, key="dep_focus_dir",
+                    )
+                # Filter to only edges involving center_mod
+                if focus_dir == "Outgoing →":
+                    filtered_dep = DEP_COUNTS[DEP_COUNTS["source_module"] == center_mod]
+                elif focus_dir == "← Incoming":
+                    filtered_dep = DEP_COUNTS[DEP_COUNTS["target_module"] == center_mod]
+                else:
+                    filtered_dep = DEP_COUNTS[
+                        (DEP_COUNTS["source_module"] == center_mod) |
+                        (DEP_COUNTS["target_module"] == center_mod)
+                    ]
+            else:
+                ac1, ac2 = st.columns([2, 2])
+                with ac1:
+                    min_refs = st.number_input(
+                        "Min references per edge", min_value=1, value=3,
+                        step=1, key="dep_min_refs",
+                        help="Hide edges with fewer FK references than this threshold."
+                    )
+                with ac2:
+                    total_mods = len(all_module_names)
+                    top_n_mods = st.slider(
+                        "Top N modules (by connectivity)", min_value=3,
+                        max_value=total_mods, value=min(12, total_mods),
+                        step=1, key="dep_top_n",
+                        help="Keep only the N most-connected modules. Reduces clutter."
+                    )
+                # Apply top-N filter
+                mod_totals = (
+                    DEP_COUNTS.groupby("source_module")["count"].sum()
+                    .add(DEP_COUNTS.groupby("target_module")["count"].sum(), fill_value=0)
+                    .sort_values(ascending=False)
+                )
+                top_mods = set(mod_totals.head(top_n_mods).index)
+                filtered_dep = DEP_COUNTS[
+                    DEP_COUNTS["source_module"].isin(top_mods) &
+                    DEP_COUNTS["target_module"].isin(top_mods) &
+                    (DEP_COUNTS["count"] >= int(min_refs))
+                ]
+
+            # ── Render
+            node_count = len(
+                set(filtered_dep["source_module"]) | set(filtered_dep["target_module"])
+            )
+            edge_count = len(filtered_dep)
+            st.caption(f"Showing **{node_count}** modules · **{edge_count}** relationships")
+
+            m_html, m_code = build_module_mermaid(
+                filtered_dep,
+                direction=m_dir,
+                collapse_bidir=collapse_bidir,
+                center_module=center_mod,
+            )
+            components.html(m_html, height=560, scrolling=True)
 
             with st.expander("Raw Mermaid code  ·  paste into mermaid.live or Notion"):
-                st.code(m_code_dir, language="text")
+                st.code(m_code, language="text")
 
             # ── Raw dependency table
             st.markdown("---")
