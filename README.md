@@ -27,6 +27,12 @@ Built with **Streamlit** and reads directly from `iris_data_dict.xlsx`.
 ## Requirements
 
 ```bash
+pip install -r requirements.txt
+```
+
+Or individually:
+
+```bash
 pip install streamlit pandas pyvis openpyxl plotly
 ```
 
@@ -148,6 +154,7 @@ Progress is shown per-table in the **Thai Descriptions** tab and as a total coun
 
 ```
 app.py                        # Streamlit application
+requirements.txt              # Python dependencies
 Create_JSON.ipynb             # Notebook: xlsx → JSON export
 iris_data_dict.xlsx           # Source data (5 sheets)
 .streamlit/
