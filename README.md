@@ -13,19 +13,21 @@ Built with **Streamlit** and reads directly from `iris_data_dict.xlsx`.
 | **Browse** | Filter tables by module and name; EN description completeness progress bar per table |
 | **Search** | Full-text search across table names, descriptions, and field names/types |
 | **Schema view** | Columns with types, descriptions, FK references, parameters & triggers |
+| **FK Diagram** | Per-table ER diagram tab — shows outgoing and incoming FK links with field names as edge labels |
 | **Relationship graph** | Interactive network (pyvis) or Mermaid flowchart with module subgraphs; 1–2 hop depth |
 | **SQL Builder** | Generate `SELECT` statements; IRIS arrow-syntax (`->`) examples for reference fields |
 | **Thai descriptions** | Inline editor to add Thai field descriptions, saved locally to `translations.json` |
 | **Recently Viewed** | Last 10 visited tables shown on the Home page for quick re-access |
 | **URL deep linking** | `?table=TABLE_NAME` in the URL opens any table directly — shareable across the network |
 | **Export schema** | Download any table schema as CSV or multi-sheet Excel (columns, FK, incoming refs, parameters, triggers) |
+| **Analytics** | Module Dependency Map, Hub Tables, Orphan Tables, ER Diagram (multi-table scope) |
 
 ---
 
 ## Requirements
 
 ```bash
-pip install streamlit pandas pyvis openpyxl
+pip install streamlit pandas pyvis openpyxl plotly
 ```
 
 ---
@@ -75,6 +77,31 @@ http://10.78.9.107:8501/?table=APC_Vendor
 ```
 
 The URL bar updates automatically as you browse — copy it from the browser to share with colleagues.
+
+---
+
+## FK Diagram (per-table)
+
+Each table detail page has a **📐 FK Diagram** tab that renders an entity-relationship diagram showing:
+
+- **Outgoing FK** — tables this table references, with the FK field name as the edge label
+- **Incoming FK** — tables that reference this table
+- Field boxes with correct IRIS types (`string`, `date`, `float`, `ref`, `list`, …) and `FK` markers
+
+Controls: Outgoing+Incoming / Outgoing only / Incoming only · show/hide fields · LR or TB layout.
+
+For hub tables with many connections the diagram is capped at 25 entities; switch to "Outgoing only" or "Incoming only" to see each side in full.
+
+---
+
+## Analytics page
+
+| Tab | Description |
+|---|---|
+| **Module Dependency Map** | Mermaid flowchart of module-to-module FK references; Focus mode, Top-N slider, collapse bidirectional |
+| **Hub Tables** | Tables ranked by incoming + outgoing FK count |
+| **Orphan Tables** | Tables with no FK relationships at all |
+| **ER Diagram** | Multi-table ER diagram — scope by module, 1-hop from a table, or custom selection (up to 20 tables) |
 
 ---
 

@@ -1024,8 +1024,8 @@ elif st.session_state.page in ("browse", "detail"):
 
             # ── Tabs ────────────────────────────────────────────────────────
 
-            tab_schema, tab_sql, tab_translate = st.tabs(
-                ["📋 Schema", "⚙️ SQL Builder", "🇹🇭 Thai Descriptions"]
+            tab_schema, tab_sql, tab_translate, tab_fk_er = st.tabs(
+                ["📋 Schema", "⚙️ SQL Builder", "🇹🇭 Thai Descriptions", "📐 FK Diagram"]
             )
 
             # ── TAB 1: Schema ────────────────────────────────────────────────
@@ -1222,6 +1222,102 @@ elif st.session_state.page in ("browse", "detail"):
                         st.session_state.translations = translations
                         st.success(f"Saved {len(new_trans)} Thai descriptions for **{tbl_name}**.")
                         st.rerun()
+
+            # ── TAB 4: FK Diagram ────────────────────────────────────────────
+
+            with tab_fk_er:
+                st.subheader("FK Diagram")
+                st.markdown(
+                    "Entity-relationship diagram showing **FK links** for this table — "
+                    "outgoing references (→) and incoming references (←)."
+                )
+
+                _MAX_FK_ER = 25  # cap to keep diagram readable
+
+                fk_res_all = fk[fk["resolve_status"] == "resolved"]
+
+                out_tbls = sorted(fk_res_all[
+                    (fk_res_all["source_sql_table_name"] == tbl_name)
+                    & (fk_res_all["source_sql_field_name"] != "")
+                ]["target_sql_table_name"].unique().tolist())
+
+                in_tbls = sorted(fk_res_all[
+                    (fk_res_all["target_sql_table_name"] == tbl_name)
+                    & (fk_res_all["source_sql_field_name"] != "")
+                ]["source_sql_table_name"].unique().tolist())
+
+                fk_ec1, fk_ec2, fk_ec3 = st.columns([2, 2, 2])
+                with fk_ec1:
+                    fk_include = st.radio(
+                        "Show",
+                        ["Outgoing + Incoming", "Outgoing only", "Incoming only"],
+                        horizontal=False,
+                        key=f"fk_er_dir_{tbl_name}",
+                    )
+                with fk_ec2:
+                    fk_show_fields = st.checkbox(
+                        "Show fields", value=True, key=f"fk_er_fields_{tbl_name}"
+                    )
+                    fk_max_fields = st.number_input(
+                        "Max fields/table", min_value=3, max_value=30, value=6,
+                        step=1, key=f"fk_er_maxf_{tbl_name}",
+                        disabled=not fk_show_fields,
+                    )
+                with fk_ec3:
+                    fk_er_dir = st.radio(
+                        "Layout", ["LR", "TB"],
+                        horizontal=True,
+                        key=f"fk_er_layout_{tbl_name}",
+                        help="LR = left-to-right, TB = top-to-bottom",
+                    )
+
+                if fk_include == "Outgoing only":
+                    candidate_tables = list({tbl_name} | set(out_tbls))
+                elif fk_include == "Incoming only":
+                    candidate_tables = list({tbl_name} | set(in_tbls))
+                else:
+                    candidate_tables = list({tbl_name} | set(out_tbls) | set(in_tbls))
+
+                # Warn and trim if too many connected tables
+                _truncated = False
+                if len(candidate_tables) > _MAX_FK_ER:
+                    _truncated = True
+                    # Always keep center; fill remaining slots by preference: out first, then in
+                    _pool = [t for t in out_tbls if t != tbl_name] + [t for t in in_tbls if t != tbl_name]
+                    _seen: set = set()
+                    _ordered = []
+                    for t in _pool:
+                        if t not in _seen:
+                            _seen.add(t)
+                            _ordered.append(t)
+                    candidate_tables = [tbl_name] + _ordered[:_MAX_FK_ER - 1]
+
+                st.caption(
+                    f"**{tbl_name}** → outgoing FK to **{len(out_tbls)}** table(s) · "
+                    f"incoming FK from **{len(in_tbls)}** table(s)"
+                    + (f" · ⚠️ showing {_MAX_FK_ER} of {len(out_tbls)+len(in_tbls)+1} total" if _truncated else "")
+                )
+
+                if _truncated:
+                    st.warning(
+                        f"This table has **{len(out_tbls) + len(in_tbls)}** connected tables — "
+                        f"diagram capped at {_MAX_FK_ER} entities for readability. "
+                        "Use **Outgoing only** or **Incoming only** to see each side in full."
+                    )
+
+                if len(candidate_tables) == 1:
+                    st.info("No FK relationships found for this table.")
+                else:
+                    fk_er_html, fk_er_code = build_er_mermaid(
+                        candidate_tables,
+                        include_fields=fk_show_fields,
+                        max_fields=int(fk_max_fields),
+                        cross_module=False,
+                        direction=fk_er_dir,
+                    )
+                    components.html(fk_er_html, height=620, scrolling=True)
+                    with st.expander("Raw Mermaid code  ·  paste into mermaid.live or Notion"):
+                        st.code(fk_er_code, language="text")
 
 # ─── GRAPH ────────────────────────────────────────────────────────────────────
 
