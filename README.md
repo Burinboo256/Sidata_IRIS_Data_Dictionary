@@ -79,7 +79,7 @@ Find your IP with `ipconfig` — look for **IPv4 Address** under your active net
 Append `?table=TABLE_NAME` to the server URL to open a specific table directly:
 
 ```
-http://10.78.9.107:8501/?table=APC_Vendor
+http://xx.xx.xx.xx:8501/?table=APC_Vendor
 ```
 
 The URL bar updates automatically as you browse — copy it from the browser to share with colleagues.
