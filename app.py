@@ -574,7 +574,7 @@ elif st.session_state.page == "search":
                     "module_name": "Module", "class_description": "Description",
                 }).copy()
                 disp["Description"] = disp["Description"].str.replace("\n", " ").str[:120]
-                evt = st.dataframe(disp, use_container_width=True, hide_index=True,
+                evt = st.dataframe(disp, width="stretch", hide_index=True,
                                    selection_mode="single-row", on_select="rerun",
                                    key="search_t_sel")
                 if evt.selection.rows:
@@ -593,7 +593,7 @@ elif st.session_state.page == "search":
                     "sql_field_name": "Field", "description": "Description", "member_type": "Type",
                 }).copy()
                 disp["Type"] = disp["Type"].str[:60]
-                evt = st.dataframe(disp, use_container_width=True, hide_index=True,
+                evt = st.dataframe(disp, width="stretch", hide_index=True,
                                    selection_mode="single-row", on_select="rerun",
                                    key="search_f_sel")
                 if evt.selection.rows:
@@ -650,7 +650,7 @@ elif st.session_state.page in ("browse", "detail"):
                 "EN Desc %", min_value=0, max_value=100, format="%d%%",
             )
         },
-        use_container_width=True, hide_index=True,
+        width="stretch", hide_index=True,
         selection_mode="single-row", on_select="rerun",
         key="browse_table_sel", height=280,
     )
@@ -754,7 +754,7 @@ elif st.session_state.page in ("browse", "detail"):
                             "Description": str(fr["description"]),
                             "Reference →": ref,
                         })
-                    st.dataframe(pd.DataFrame(col_rows), use_container_width=True, hide_index=True)
+                    st.dataframe(pd.DataFrame(col_rows), width="stretch", hide_index=True)
                 else:
                     st.info("No columns found.")
 
@@ -772,7 +772,7 @@ elif st.session_state.page in ("browse", "detail"):
                                 "Target PK": str(r["target_pk_fields"]),
                             })
                         rel_evt = st.dataframe(
-                            pd.DataFrame(rel_rows), use_container_width=True, hide_index=True,
+                            pd.DataFrame(rel_rows), width="stretch", hide_index=True,
                             selection_mode="single-row", on_select="rerun",
                             key=f"rel_{tbl_name}",
                         )
@@ -792,7 +792,7 @@ elif st.session_state.page in ("browse", "detail"):
                             })
                         inc_df = pd.DataFrame(inc_rows).drop_duplicates()
                         inc_evt = st.dataframe(
-                            inc_df, use_container_width=True, hide_index=True,
+                            inc_df, width="stretch", hide_index=True,
                             selection_mode="single-row", on_select="rerun",
                             key=f"inc_{tbl_name}",
                         )
@@ -808,14 +808,14 @@ elif st.session_state.page in ("browse", "detail"):
                             st.dataframe(
                                 params[["member_name", "member_type", "description"]].rename(
                                     columns={"member_name": "Name", "member_type": "Value", "description": "Description"}
-                                ), use_container_width=True, hide_index=True,
+                                ), width="stretch", hide_index=True,
                             )
                         if not triggers.empty:
                             st.markdown("**Triggers**")
                             st.dataframe(
                                 triggers[["member_name", "member_decl", "description"]].rename(
                                     columns={"member_name": "Name", "member_decl": "Declaration", "description": "Description"}
-                                ), use_container_width=True, hide_index=True,
+                                ), width="stretch", hide_index=True,
                             )
 
             # ── TAB 2: SQL Builder ───────────────────────────────────────────
@@ -916,7 +916,7 @@ elif st.session_state.page in ("browse", "detail"):
                                 "TH Description (แก้ไขได้)", width="large",
                             ),
                         },
-                        use_container_width=True,
+                        width="stretch",
                         hide_index=True,
                         key=f"th_editor_{tbl_name}",
                         num_rows="fixed",
