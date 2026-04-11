@@ -53,7 +53,7 @@ Quick reference for where to find every feature in the app:
 | 📋 Schema | Browse → click a table → **1st tab "📋 Schema"** (IRIS type, MS SQL type, FK references) |
 | ⚙️ SQL Builder | Browse → click a table → **2nd tab "⚙️ SQL Builder"** |
 | 🇹🇭 Thai Desc | Browse → click a table → **3rd tab "🇹🇭 Thai Descriptions"** |
-| 📐 FK Diagram | Browse → click a table → **4th tab "📐 FK Diagram"** |
+| 📐 FK Diagram | Browse → click a table → **4th tab "📐 FK Diagram"** (slider for entity limit; Split view for side-by-side) |
 | 🔗 Lineage | Browse → click a table → **5th tab "🔗 Lineage"** (column-level upstream/downstream FK paths) |
 | ☀️ / 🌙 Theme | Bottom of sidebar → **Light Mode / Dark Mode** toggle |
 
@@ -231,9 +231,19 @@ Each table detail page has a **📐 FK Diagram** tab that renders an entity-rela
 - **Incoming FK** — tables that reference this table
 - Field boxes with correct IRIS types (`string`, `date`, `float`, `ref`, `list`, …) and `FK` markers
 
-Controls: Outgoing+Incoming / Outgoing only / Incoming only · show/hide fields · LR or TB layout.
+Controls:
 
-For hub tables with many connections the diagram is capped at 25 entities; switch to "Outgoing only" or "Incoming only" to see each side in full.
+| Control | Options | Notes |
+|---|---|---|
+| **Show** | Outgoing + Incoming · Outgoing only · Incoming only · **Split view** | Split view renders both sides as two diagrams side-by-side |
+| **Show fields** | on / off | Toggle field list inside each entity box |
+| **Max fields/table** | 3–30 (default 6) | Caps fields shown per entity when "Show fields" is on |
+| **Layout** | LR · TB | Left-to-right or top-to-bottom |
+| **Max entities per diagram** | 5–100 (default 25) | Raise to see more tables; lower for a cleaner view |
+
+**Split view** renders outgoing FK and incoming FK as two independent diagrams side-by-side — each respects the entity limit slider independently.
+
+When the diagram exceeds the entity limit a warning guides you to raise the slider or switch to Split view.
 
 **Export:** After the diagram renders, **⬇ SVG** and **⬇ PNG** buttons appear above the diagram. SVG is vector and always works; PNG uses canvas rendering (2× resolution).
 

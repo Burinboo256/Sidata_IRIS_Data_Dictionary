@@ -1943,8 +1943,6 @@ elif st.session_state.page in ("browse", "detail"):
                     "outgoing references (→) and incoming references (←)."
                 )
 
-                _MAX_FK_ER = 25  # cap to keep diagram readable
-
                 fk_res_all = fk[fk["resolve_status"] == "resolved"]
 
                 out_tbls = sorted(fk_res_all[
@@ -1957,11 +1955,16 @@ elif st.session_state.page in ("browse", "detail"):
                     & (fk_res_all["source_sql_field_name"] != "")
                 ]["source_sql_table_name"].unique().tolist())
 
-                fk_ec1, fk_ec2, fk_ec3 = st.columns([2, 2, 2])
+                fk_ec1, fk_ec2, fk_ec3 = st.columns([2, 2, 3])
                 with fk_ec1:
                     fk_include = st.radio(
                         "Show",
-                        ["Outgoing + Incoming", "Outgoing only", "Incoming only"],
+                        [
+                            "Outgoing + Incoming",
+                            "Outgoing only",
+                            "Incoming only",
+                            "Split view (Outgoing | Incoming)",
+                        ],
                         horizontal=False,
                         key=f"fk_er_dir_{tbl_name}",
                     )
@@ -1981,53 +1984,111 @@ elif st.session_state.page in ("browse", "detail"):
                         key=f"fk_er_layout_{tbl_name}",
                         help="LR = left-to-right, TB = top-to-bottom",
                     )
-
-                if fk_include == "Outgoing only":
-                    candidate_tables = list({tbl_name} | set(out_tbls))
-                elif fk_include == "Incoming only":
-                    candidate_tables = list({tbl_name} | set(in_tbls))
-                else:
-                    candidate_tables = list({tbl_name} | set(out_tbls) | set(in_tbls))
-
-                # Warn and trim if too many connected tables
-                _truncated = False
-                if len(candidate_tables) > _MAX_FK_ER:
-                    _truncated = True
-                    _pool = [t for t in out_tbls if t != tbl_name] + [t for t in in_tbls if t != tbl_name]
-                    _seen: set = set()
-                    _ordered = []
-                    for t in _pool:
-                        if t not in _seen:
-                            _seen.add(t)
-                            _ordered.append(t)
-                    candidate_tables = [tbl_name] + _ordered[:_MAX_FK_ER - 1]
+                    fk_max_entities = st.slider(
+                        "Max entities per diagram", min_value=5, max_value=100,
+                        value=25, step=5,
+                        key=f"fk_er_maxent_{tbl_name}",
+                        help="Raise this to show more tables; lower it to keep the diagram readable.",
+                    )
 
                 st.caption(
                     f"**{tbl_name}** → outgoing FK to **{len(out_tbls)}** table(s) · "
                     f"incoming FK from **{len(in_tbls)}** table(s)"
-                    + (f" · ⚠️ showing {_MAX_FK_ER} of {len(out_tbls)+len(in_tbls)+1} total" if _truncated else "")
                 )
 
-                if _truncated:
-                    st.warning(
-                        f"This table has **{len(out_tbls) + len(in_tbls)}** connected tables — "
-                        f"diagram capped at {_MAX_FK_ER} entities for readability. "
-                        "Use **Outgoing only** or **Incoming only** to see each side in full."
-                    )
+                # ── Split view: two diagrams side by side ──
+                if fk_include == "Split view (Outgoing | Incoming)":
+                    if not out_tbls and not in_tbls:
+                        st.info("No FK relationships found for this table.")
+                    else:
+                        sv_col_out, sv_col_in = st.columns(2)
 
-                if len(candidate_tables) == 1:
-                    st.info("No FK relationships found for this table.")
+                        with sv_col_out:
+                            st.markdown("**↗ Outgoing**")
+                            out_candidates = [tbl_name] + out_tbls[:fk_max_entities - 1]
+                            _out_trunc = len(out_tbls) >= fk_max_entities
+                            if _out_trunc:
+                                st.warning(
+                                    f"Showing {fk_max_entities} of {len(out_tbls) + 1} — "
+                                    "raise the slider to see more."
+                                )
+                            if len(out_candidates) == 1:
+                                st.info("No outgoing FK.")
+                            else:
+                                _html, _code = build_er_mermaid(
+                                    out_candidates,
+                                    include_fields=fk_show_fields,
+                                    max_fields=int(fk_max_fields),
+                                    cross_module=False,
+                                    direction=fk_er_dir,
+                                )
+                                components.html(_html, height=560, scrolling=True)
+                                with st.expander("Raw Mermaid (Outgoing)"):
+                                    st.code(_code, language="text")
+
+                        with sv_col_in:
+                            st.markdown("**↙ Incoming**")
+                            in_candidates = [tbl_name] + in_tbls[:fk_max_entities - 1]
+                            _in_trunc = len(in_tbls) >= fk_max_entities
+                            if _in_trunc:
+                                st.warning(
+                                    f"Showing {fk_max_entities} of {len(in_tbls) + 1} — "
+                                    "raise the slider to see more."
+                                )
+                            if len(in_candidates) == 1:
+                                st.info("No incoming FK.")
+                            else:
+                                _html, _code = build_er_mermaid(
+                                    in_candidates,
+                                    include_fields=fk_show_fields,
+                                    max_fields=int(fk_max_fields),
+                                    cross_module=False,
+                                    direction=fk_er_dir,
+                                )
+                                components.html(_html, height=560, scrolling=True)
+                                with st.expander("Raw Mermaid (Incoming)"):
+                                    st.code(_code, language="text")
+
+                # ── Single diagram view ──
                 else:
-                    fk_er_html, fk_er_code = build_er_mermaid(
-                        candidate_tables,
-                        include_fields=fk_show_fields,
-                        max_fields=int(fk_max_fields),
-                        cross_module=False,
-                        direction=fk_er_dir,
-                    )
-                    components.html(fk_er_html, height=620, scrolling=True)
-                    with st.expander("Raw Mermaid code  ·  paste into mermaid.live or Notion"):
-                        st.code(fk_er_code, language="text")
+                    if fk_include == "Outgoing only":
+                        candidate_tables = list({tbl_name} | set(out_tbls))
+                    elif fk_include == "Incoming only":
+                        candidate_tables = list({tbl_name} | set(in_tbls))
+                    else:
+                        candidate_tables = list({tbl_name} | set(out_tbls) | set(in_tbls))
+
+                    _truncated = False
+                    if len(candidate_tables) > fk_max_entities:
+                        _truncated = True
+                        _pool = [t for t in out_tbls if t != tbl_name] + [t for t in in_tbls if t != tbl_name]
+                        _seen: set = set()
+                        _ordered = []
+                        for t in _pool:
+                            if t not in _seen:
+                                _seen.add(t)
+                                _ordered.append(t)
+                        candidate_tables = [tbl_name] + _ordered[:fk_max_entities - 1]
+
+                    if _truncated:
+                        st.warning(
+                            f"Showing **{fk_max_entities}** of **{len(out_tbls) + len(in_tbls) + 1}** entities — "
+                            "raise the slider or switch to **Split view** to see both sides in full."
+                        )
+
+                    if len(candidate_tables) == 1:
+                        st.info("No FK relationships found for this table.")
+                    else:
+                        fk_er_html, fk_er_code = build_er_mermaid(
+                            candidate_tables,
+                            include_fields=fk_show_fields,
+                            max_fields=int(fk_max_fields),
+                            cross_module=False,
+                            direction=fk_er_dir,
+                        )
+                        components.html(fk_er_html, height=620, scrolling=True)
+                        with st.expander("Raw Mermaid code  ·  paste into mermaid.live or Notion"):
+                            st.code(fk_er_code, language="text")
 
             # ── TAB 5: Lineage ───────────────────────────────────────────────
 
