@@ -28,6 +28,7 @@ Built with **Streamlit** and reads directly from `iris_data_dict.xlsx`.
 | **URL deep linking** | `?table=TABLE_NAME` in the URL opens any table directly — shareable across the network |
 | **Export schema** | Download any table schema as CSV or multi-sheet Excel (columns with MSSQL types, FK, incoming refs, parameters, triggers) |
 | **Analytics** | Module Dependency Map, Hub Tables, Orphan Tables, ER Diagram (multi-table scope) |
+| **Usage Stats** | Track sessions, page views, table views, and searches; charts for sessions/day, feature usage, top tables, and top searches |
 | **Dark / Light mode** | Toggle between dark and light themes from the sidebar |
 
 ---
@@ -45,6 +46,7 @@ Quick reference for where to find every feature in the app:
 | 🕸️ Graph | Sidebar → **Graph** (interactive network or Mermaid flowchart, 1–2 hops) |
 | 📊 Analytics | Sidebar → **Analytics** (Module Dependency Map, Hub Tables, Orphan Tables, ER Diagram) |
 | 📋 Changelog | Sidebar → **Changelog** (audit log of tag, translation, and metadata changes) |
+| 📈 Usage Stats | Sidebar → **Usage Stats** (sessions, page views, top tables, top searches) |
 | 🏷️ Tags | Browse → click a table → detail header → **🏷️ Manage Tags** expander |
 | 📊 Metadata | Browse → click a table → detail header → **📊 Manage Metadata** expander |
 | 📋 Schema | Browse → click a table → **1st tab "📋 Schema"** (IRIS type, MS SQL type, FK references) |
@@ -259,6 +261,31 @@ Entries are stored in `changelog.json` (up to 1,000 most recent). The page suppo
 
 ---
 
+## Usage Stats
+
+The **📈 Usage Stats** page records usage events automatically and displays them as charts.
+
+| Event | When recorded |
+|---|---|
+| `session_start` | Each new browser session |
+| `page_view` | Every time the user navigates to a page |
+| `table_view` | Every time a table detail page is opened |
+| `search` | Every time a keyword is entered in the Search box |
+
+Charts shown:
+
+| Chart | Description |
+|---|---|
+| **Sessions per Day** | Bar chart of daily session counts (last 30 days) |
+| **Feature Usage** | Donut chart of page_view breakdown by feature |
+| **Top Tables Viewed** | Top 15 most-opened tables |
+| **Top Searches** | Top 15 most-entered search queries |
+| **Recent Activity** | Last 50 events with timestamp, event type, and details |
+
+Events are stored in `usage_log.json` (capped at 10,000 most recent entries). The log can be cleared from the Usage Stats page.
+
+---
+
 ## Data source
 
 The app reads five sheets from `iris_data_dict.xlsx`:
@@ -301,13 +328,14 @@ These files are git-ignored and created automatically by the app:
 | `tags.json` | Manage Tags expander | Tag lists per table |
 | `metadata.json` | Manage Metadata expander | Owner, steward, contact, certification, refresh info per table |
 | `changelog.json` | Any save action | Audit log entries |
+| `usage_log.json` | Auto (every navigation / search) | Session, page view, table view, search events |
 
 ---
 
 ## Project structure
 
 ```
-app.py                        # Streamlit application (~2400 lines)
+app.py                        # Streamlit application (~2600 lines)
 requirements.txt              # Python dependencies
 Create_JSON.ipynb             # Notebook: xlsx → JSON export
 iris_data_dict.xlsx           # Source data (5 sheets)
@@ -318,4 +346,5 @@ translations.json             # Thai descriptions (git-ignored, auto-created)
 tags.json                     # Table tags (git-ignored, auto-created)
 metadata.json                 # Table governance metadata (git-ignored, auto-created)
 changelog.json                # Audit log (git-ignored, auto-created)
+usage_log.json                # Usage events (git-ignored, auto-created)
 ```
