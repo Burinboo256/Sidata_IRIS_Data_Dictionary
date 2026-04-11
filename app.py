@@ -157,24 +157,37 @@ _apply_css()
 
 @st.cache_data(show_spinner="Loading data dictionary…")
 def load_data():
-    xl = pd.ExcelFile(EXCEL_PATH)
-    tables  = xl.parse("sql_tables").fillna("")
-    fields  = xl.parse("sql_fields").fillna("")
-    fk      = xl.parse("fk_relationships").fillna("")
-    classes = xl.parse("classes").fillna("")
-    members = xl.parse("members").fillna("")
-    return tables, fields, fk, classes, members
+    try:
+        xl = pd.ExcelFile(EXCEL_PATH)
+        tables  = xl.parse("sql_tables").fillna("")
+        fields  = xl.parse("sql_fields").fillna("")
+        fk      = xl.parse("fk_relationships").fillna("")
+        classes = xl.parse("classes").fillna("")
+        members = xl.parse("members").fillna("")
+        return tables, fields, fk, classes, members
+    except FileNotFoundError:
+        st.error(
+            f"**Data file not found:** `{EXCEL_PATH}`\n\n"
+            "Make sure the Excel file is in the same directory as `app.py`, then refresh the page."
+        )
+        st.stop()
+    except Exception as e:
+        st.error(f"**Failed to load data dictionary:** {e}\n\nPlease refresh the page.")
+        st.stop()
 
 
 @st.cache_data(show_spinner=False)
 def compute_completeness(_fields_df):
     """% of fields per class_name that have a non-empty EN description."""
-    result = {}
-    for class_name, grp in _fields_df.groupby("class_name"):
-        total = len(grp)
-        filled = (grp["description"].astype(str).str.strip() != "").sum()
-        result[class_name] = round(filled / total * 100) if total > 0 else 0
-    return result
+    try:
+        result = {}
+        for class_name, grp in _fields_df.groupby("class_name"):
+            total = len(grp)
+            filled = (grp["description"].astype(str).str.strip() != "").sum()
+            result[class_name] = round(filled / total * 100) if total > 0 else 0
+        return result
+    except Exception:
+        return {}
 
 
 @st.cache_data(show_spinner="Collecting graph data…")
@@ -235,55 +248,65 @@ def collect_graph_data(center_table: str, depth: int, _fk_df, _tables_df) -> tup
 
 def build_pyvis_html(center_table: str, nodes_dict: dict, edges: list) -> str:
     """Render collected graph data as an interactive pyvis network."""
-    t = _theme()
-    net = Network(
-        height="560px", width="100%", directed=True,
-        bgcolor=t["pyvis_bg"], font_color=t["pyvis_font"],
-    )
-    COLORS = {"center": "#4c6ef5", "out": "#6fcf97", "in": "#f7a96f"}
-    SIZES  = {"center": 40, "out": 22, "in": 22}
-
-    for name, role in nodes_dict.items():
-        net.add_node(
-            name, label=name,
-            color=COLORS[role], size=SIZES[role],
-            title=f"<b>{name}</b>",
-            font={"size": 11, "color": t["pyvis_font"], "strokeWidth": 3, "strokeColor": t["pyvis_stroke"]},
+    try:
+        t = _theme()
+        net = Network(
+            height="560px", width="100%", directed=True,
+            bgcolor=t["pyvis_bg"], font_color=t["pyvis_font"],
         )
+        COLORS = {"center": "#4c6ef5", "out": "#6fcf97", "in": "#f7a96f"}
+        SIZES  = {"center": 40, "out": 22, "in": 22}
 
-    added_edges: set = set()
-    for src, tgt, label in edges:
-        key = (src, tgt, label[:30])
-        if key in added_edges:
-            continue
-        added_edges.add(key)
-        net.add_edge(
-            src, tgt,
-            title=label,
-            label=label if len(label) <= 22 else "",
-            color={"color": "#5a6278", "highlight": "#4c6ef5"},
-            arrows="to",
-            font={"size": 9, "strokeWidth": 2, "strokeColor": t["pyvis_stroke"]},
+        for name, role in nodes_dict.items():
+            net.add_node(
+                name, label=name,
+                color=COLORS.get(role, "#888"), size=SIZES.get(role, 22),
+                title=f"<b>{name}</b>",
+                font={"size": 11, "color": t["pyvis_font"], "strokeWidth": 3, "strokeColor": t["pyvis_stroke"]},
+            )
+
+        added_edges: set = set()
+        for src, tgt, label in edges:
+            key = (src, tgt, label[:30])
+            if key in added_edges:
+                continue
+            added_edges.add(key)
+            net.add_edge(
+                src, tgt,
+                title=label,
+                label=label if len(label) <= 22 else "",
+                color={"color": "#5a6278", "highlight": "#4c6ef5"},
+                arrows="to",
+                font={"size": 9, "strokeWidth": 2, "strokeColor": t["pyvis_stroke"]},
+            )
+
+        net.set_options("""{
+          "physics": {
+            "barnesHut": {
+              "gravitationalConstant": -8000, "centralGravity": 0.3,
+              "springLength": 130, "springConstant": 0.04, "damping": 0.09
+            }
+          },
+          "nodes": {"borderWidth": 2, "shape": "dot"},
+          "edges": {"smooth": {"type": "curvedCW", "roundness": 0.1}},
+          "interaction": {"hover": true, "tooltipDelay": 80}
+        }""")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = os.path.join(tmpdir, "graph.html")
+            net.save_graph(tmp_path)
+            with open(tmp_path, "r", encoding="utf-8") as f:
+                html = f.read()
+        return html
+    except Exception as e:
+        return (
+            "<html><body style='background:#1e2130;color:#e0e0e0;"
+            "font-family:sans-serif;padding:24px'>"
+            f"<b style='color:salmon'>Network graph failed to render:</b><br><pre>{e}</pre>"
+            "<br><button onclick='location.reload()' style='padding:6px 14px;"
+            "border-radius:4px;cursor:pointer'>Refresh page</button>"
+            "</body></html>"
         )
-
-    net.set_options("""{
-      "physics": {
-        "barnesHut": {
-          "gravitationalConstant": -8000, "centralGravity": 0.3,
-          "springLength": 130, "springConstant": 0.04, "damping": 0.09
-        }
-      },
-      "nodes": {"borderWidth": 2, "shape": "dot"},
-      "edges": {"smooth": {"type": "curvedCW", "roundness": 0.1}},
-      "interaction": {"hover": true, "tooltipDelay": 80}
-    }""")
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmp_path = os.path.join(tmpdir, "graph.html")
-        net.save_graph(tmp_path)
-        with open(tmp_path, "r", encoding="utf-8") as f:
-            html = f.read()
-    return html
 
 
 def mermaid_id(name: str) -> str:
@@ -301,55 +324,56 @@ def build_mermaid_html(
     """Render collected graph data as a Mermaid flowchart.
     Returns (html_string, raw_mermaid_code).
     """
-    t = _theme()
-    tbl_to_module = tables.set_index("sql_table_name")["module_name"].to_dict()
-    tbl_to_prefix = tables.set_index("sql_table_name")["module_prefix"].to_dict()
+    try:
+        t = _theme()
+        tbl_to_module = tables.set_index("sql_table_name")["module_name"].to_dict()
+        tbl_to_prefix = tables.set_index("sql_table_name")["module_prefix"].to_dict()
 
-    lines = [f"flowchart {direction}"]
+        lines = [f"flowchart {direction}"]
 
-    if group_modules:
-        groups: dict = {}
-        for tname in nodes_dict:
-            mod = tbl_to_module.get(tname, "Unknown")
-            groups.setdefault(mod, []).append(tname)
+        if group_modules:
+            groups: dict = {}
+            for tname in nodes_dict:
+                mod = tbl_to_module.get(tname, "Unknown")
+                groups.setdefault(mod, []).append(tname)
 
-        for mod_name in sorted(groups):
-            mod_id = mermaid_id(mod_name)
-            prefix = tbl_to_prefix.get(groups[mod_name][0], "")
-            lines.append(f'    subgraph {mod_id}["{prefix} · {mod_name}"]')
-            for tname in sorted(groups[mod_name]):
-                nid = mermaid_id(tname)
-                lines.append(f'        {nid}["{tname}"]')
-            lines.append("    end")
-    else:
-        for tname in sorted(nodes_dict):
-            nid = mermaid_id(tname)
-            lines.append(f'    {nid}["{tname}"]')
-
-    # Edges — deduplicated
-    seen_edges: set = set()
-    for src, tgt, label in edges:
-        sid, tid = mermaid_id(src), mermaid_id(tgt)
-        lbl = label[:26] + "…" if len(label) > 26 else label
-        key = (sid, tid, lbl)
-        if key in seen_edges:
-            continue
-        seen_edges.add(key)
-        if lbl:
-            lines.append(f'    {sid} -->|"{lbl}"| {tid}')
+            for mod_name in sorted(groups):
+                mod_id = mermaid_id(mod_name)
+                prefix = tbl_to_prefix.get(groups[mod_name][0], "")
+                lines.append(f'    subgraph {mod_id}["{prefix} · {mod_name}"]')
+                for tname in sorted(groups[mod_name]):
+                    nid = mermaid_id(tname)
+                    lines.append(f'        {nid}["{tname}"]')
+                lines.append("    end")
         else:
-            lines.append(f'    {sid} --> {tid}')
+            for tname in sorted(nodes_dict):
+                nid = mermaid_id(tname)
+                lines.append(f'    {nid}["{tname}"]')
 
-    # Highlight center
-    lines.append(
-        f"    style {mermaid_id(center_table)} "
-        "fill:#4c6ef5,color:#fff,stroke:#7eb8f7,stroke-width:3px"
-    )
+        # Edges — deduplicated
+        seen_edges: set = set()
+        for src, tgt, label in edges:
+            sid, tid = mermaid_id(src), mermaid_id(tgt)
+            lbl = label[:26] + "…" if len(label) > 26 else label
+            key = (sid, tid, lbl)
+            if key in seen_edges:
+                continue
+            seen_edges.add(key)
+            if lbl:
+                lines.append(f'    {sid} -->|"{lbl}"| {tid}')
+            else:
+                lines.append(f'    {sid} --> {tid}')
 
-    mermaid_code = "\n".join(lines)
-    _code_js = mermaid_code.replace("\\", "\\\\").replace("`", "\\`").replace("$", "\\$")
+        # Highlight center
+        lines.append(
+            f"    style {mermaid_id(center_table)} "
+            "fill:#4c6ef5,color:#fff,stroke:#7eb8f7,stroke-width:3px"
+        )
 
-    html = f"""<!DOCTYPE html>
+        mermaid_code = "\n".join(lines)
+        _code_js = mermaid_code.replace("\\", "\\\\").replace("`", "\\`").replace("$", "\\$")
+
+        html = f"""<!DOCTYPE html>
 <html><head>
 <meta charset="utf-8">
 <style>
@@ -435,7 +459,17 @@ document.getElementById("btn-png").onclick = function() {{
 </script>
 </body></html>"""
 
-    return html, mermaid_code
+        return html, mermaid_code
+    except Exception as e:
+        err_html = (
+            "<html><body style='background:#1e2130;color:#e0e0e0;"
+            "font-family:sans-serif;padding:24px'>"
+            f"<b style='color:salmon'>Graph diagram failed to build:</b><br><pre>{e}</pre>"
+            "<br><button onclick='location.reload()' style='padding:6px 14px;"
+            "border-radius:4px;cursor:pointer'>Refresh page</button>"
+            "</body></html>"
+        )
+        return err_html, f"# error: {e}"
 
 
 def extract_storage(class_decl: str) -> str:
@@ -447,75 +481,105 @@ def extract_storage(class_decl: str) -> str:
 
 def load_translations() -> dict:
     if os.path.exists(TRANSLATIONS_PATH):
-        with open(TRANSLATIONS_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
+        try:
+            with open(TRANSLATIONS_PATH, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            return {}
     return {}
 
 
 def save_translations(data: dict):
-    with open(TRANSLATIONS_PATH, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    try:
+        with open(TRANSLATIONS_PATH, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except OSError as e:
+        st.warning(f"Could not save translations: {e}")
 
 
 def load_tags() -> dict:
     if os.path.exists(TAGS_PATH):
-        with open(TAGS_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
+        try:
+            with open(TAGS_PATH, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            return {}
     return {}
 
 
 def save_tags(data: dict):
-    with open(TAGS_PATH, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    try:
+        with open(TAGS_PATH, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except OSError as e:
+        st.warning(f"Could not save tags: {e}")
 
 
 def load_metadata() -> dict:
     if os.path.exists(METADATA_PATH):
-        with open(METADATA_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
+        try:
+            with open(METADATA_PATH, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            return {}
     return {}
 
 
 def save_metadata(data: dict):
-    with open(METADATA_PATH, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    try:
+        with open(METADATA_PATH, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except OSError as e:
+        st.warning(f"Could not save metadata: {e}")
 
 
 def load_usage_log() -> list:
     if os.path.exists(USAGE_LOG_PATH):
-        with open(USAGE_LOG_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
+        try:
+            with open(USAGE_LOG_PATH, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            return []
     return []
 
 
 def log_event(event: str, details: dict = None):
-    log = load_usage_log()
-    log.append({
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "event": event,
-        "details": details or {},
-    })
-    with open(USAGE_LOG_PATH, "w", encoding="utf-8") as f:
-        json.dump(log[-10000:], f, ensure_ascii=False)
+    try:
+        log = load_usage_log()
+        log.append({
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "event": event,
+            "details": details or {},
+        })
+        with open(USAGE_LOG_PATH, "w", encoding="utf-8") as f:
+            json.dump(log[-10000:], f, ensure_ascii=False)
+    except Exception:
+        pass  # logging must never crash the app
 
 
 def load_changelog() -> list:
     if os.path.exists(CHANGELOG_PATH):
-        with open(CHANGELOG_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
+        try:
+            with open(CHANGELOG_PATH, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            return []
     return []
 
 
 def append_changelog(action: str, table: str, details: str):
-    log = load_changelog()
-    log.insert(0, {
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "action": action,
-        "table": table,
-        "details": details,
-    })
-    with open(CHANGELOG_PATH, "w", encoding="utf-8") as f:
-        json.dump(log[:1000], f, ensure_ascii=False, indent=2)
+    try:
+        log = load_changelog()
+        log.insert(0, {
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "action": action,
+            "table": table,
+            "details": details,
+        })
+        with open(CHANGELOG_PATH, "w", encoding="utf-8") as f:
+            json.dump(log[:1000], f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass  # changelog write must never crash the app
 
 
 # ─── Export helpers ───────────────────────────────────────────────────────────
@@ -619,40 +683,45 @@ def compute_analytics(_fk_df, _tables_df) -> tuple:
     orphan_df : tables with zero relationships in both directions
     dep_counts: cross-module reference counts (source_module, target_module, count)
     """
-    resolved = _fk_df[_fk_df["resolve_status"] == "resolved"]
+    _empty_hub = pd.DataFrame(columns=["sql_table_name", "module_name", "module_prefix", "class_description", "incoming", "outgoing", "total"])
+    _empty_dep = pd.DataFrame(columns=["source_module", "target_module", "count"])
+    try:
+        resolved = _fk_df[_fk_df["resolve_status"] == "resolved"]
 
-    inc = resolved.groupby("target_sql_table_name").size().reset_index(name="incoming")
-    out = (
-        resolved[resolved["source_sql_table_name"] != ""]
-        .groupby("source_sql_table_name").size()
-        .reset_index(name="outgoing")
-    )
+        inc = resolved.groupby("target_sql_table_name").size().reset_index(name="incoming")
+        out = (
+            resolved[resolved["source_sql_table_name"] != ""]
+            .groupby("source_sql_table_name").size()
+            .reset_index(name="outgoing")
+        )
 
-    hub = _tables_df[["sql_table_name", "module_name", "module_prefix", "class_description"]].copy()
-    hub = hub.merge(inc, left_on="sql_table_name", right_on="target_sql_table_name", how="left")
-    hub = hub.merge(out, left_on="sql_table_name", right_on="source_sql_table_name", how="left")
-    hub["incoming"] = hub["incoming"].fillna(0).astype(int)
-    hub["outgoing"] = hub["outgoing"].fillna(0).astype(int)
-    hub["total"]    = hub["incoming"] + hub["outgoing"]
+        hub = _tables_df[["sql_table_name", "module_name", "module_prefix", "class_description"]].copy()
+        hub = hub.merge(inc, left_on="sql_table_name", right_on="target_sql_table_name", how="left")
+        hub = hub.merge(out, left_on="sql_table_name", right_on="source_sql_table_name", how="left")
+        hub["incoming"] = hub["incoming"].fillna(0).astype(int)
+        hub["outgoing"] = hub["outgoing"].fillna(0).astype(int)
+        hub["total"]    = hub["incoming"] + hub["outgoing"]
 
-    orphan = hub[(hub["incoming"] == 0) & (hub["outgoing"] == 0)].copy()
+        orphan = hub[(hub["incoming"] == 0) & (hub["outgoing"] == 0)].copy()
 
-    # Cross-module dependency counts (exclude self-references)
-    tbl_mod = _tables_df.set_index("sql_table_name")["module_name"].to_dict()
-    fk_mod  = resolved.copy()
-    fk_mod["src_mod"] = fk_mod["source_sql_table_name"].map(tbl_mod)
-    fk_mod["tgt_mod"] = fk_mod["target_sql_table_name"].map(tbl_mod)
-    cross = fk_mod[
-        fk_mod["src_mod"].notna() & fk_mod["tgt_mod"].notna()
-        & (fk_mod["src_mod"] != fk_mod["tgt_mod"])
-    ]
-    dep_counts = (
-        cross.groupby(["src_mod", "tgt_mod"]).size()
-        .reset_index(name="count")
-        .rename(columns={"src_mod": "source_module", "tgt_mod": "target_module"})
-    )
+        # Cross-module dependency counts (exclude self-references)
+        tbl_mod = _tables_df.set_index("sql_table_name")["module_name"].to_dict()
+        fk_mod  = resolved.copy()
+        fk_mod["src_mod"] = fk_mod["source_sql_table_name"].map(tbl_mod)
+        fk_mod["tgt_mod"] = fk_mod["target_sql_table_name"].map(tbl_mod)
+        cross = fk_mod[
+            fk_mod["src_mod"].notna() & fk_mod["tgt_mod"].notna()
+            & (fk_mod["src_mod"] != fk_mod["tgt_mod"])
+        ]
+        dep_counts = (
+            cross.groupby(["src_mod", "tgt_mod"]).size()
+            .reset_index(name="count")
+            .rename(columns={"src_mod": "source_module", "tgt_mod": "target_module"})
+        )
 
-    return hub, orphan, dep_counts
+        return hub, orphan, dep_counts
+    except Exception:
+        return _empty_hub, _empty_hub.copy(), _empty_dep
 
 
 def _module_mermaid_html(mermaid_code: str) -> str:
@@ -900,85 +969,86 @@ def build_er_mermaid(
 
     Returns (html_string, raw_mermaid_code).
     """
-    t = _theme()
-    resolved_er = fk[fk["resolve_status"] == "resolved"]
-    primary     = set(table_names)
+    try:
+        t = _theme()
+        resolved_er = fk[fk["resolve_status"] == "resolved"]
+        primary     = set(table_names)
 
-    # Optionally pull in cross-module referenced tables
-    if cross_module:
-        ext = resolved_er[
-            resolved_er["source_sql_table_name"].isin(primary)
-            & ~resolved_er["target_sql_table_name"].isin(primary)
+        # Optionally pull in cross-module referenced tables
+        if cross_module:
+            ext = resolved_er[
+                resolved_er["source_sql_table_name"].isin(primary)
+                & ~resolved_er["target_sql_table_name"].isin(primary)
+                & (resolved_er["source_sql_field_name"] != "")
+            ]["target_sql_table_name"].unique()
+            all_tables = primary | set(ext)
+        else:
+            all_tables = primary
+
+        # Only keep edges where both ends are in all_tables
+        er_edges = resolved_er[
+            resolved_er["source_sql_table_name"].isin(all_tables)
+            & resolved_er["target_sql_table_name"].isin(all_tables)
             & (resolved_er["source_sql_field_name"] != "")
-        ]["target_sql_table_name"].unique()
-        all_tables = primary | set(ext)
-    else:
-        all_tables = primary
+        ]
 
-    # Only keep edges where both ends are in all_tables
-    er_edges = resolved_er[
-        resolved_er["source_sql_table_name"].isin(all_tables)
-        & resolved_er["target_sql_table_name"].isin(all_tables)
-        & (resolved_er["source_sql_field_name"] != "")
-    ]
+        tbl_class = tables.set_index("sql_table_name")["class_name"].to_dict()
 
-    tbl_class = tables.set_index("sql_table_name")["class_name"].to_dict()
+        lines = ["erDiagram"]
 
-    lines = ["erDiagram"]
-
-    # ── Entity definitions ──
-    for tbl in sorted(all_tables):
-        cn = tbl_class.get(tbl, "")
-        if not cn or not include_fields:
-            lines.append(f"    {tbl} {{")
-            lines.append("    }")
-            continue
-
-        tbl_f = fields[fields["class_name"] == cn].sort_values("member_order")
-        fk_fields = set(
-            er_edges[er_edges["source_sql_table_name"] == tbl]["source_sql_field_name"]
-        )
-        total = len(tbl_f)
-        shown = tbl_f.head(max_fields)
-
-        lines.append(f"    {tbl} {{")
-        for _, fr in shown.iterrows():
-            sf = re.sub(r"[^a-zA-Z0-9_]", "_", str(fr["sql_field_name"]))
-            if not sf or sf == "nan":
+        # ── Entity definitions ──
+        for tbl in sorted(all_tables):
+            cn = tbl_class.get(tbl, "")
+            if not cn or not include_fields:
+                lines.append(f"    {tbl} {{")
+                lines.append("    }")
                 continue
-            ftype  = simplify_iris_type(str(fr["member_type"]))
-            marker = " FK" if fr["sql_field_name"] in fk_fields else ""
-            desc   = str(fr["description"])[:28].replace('"', "'")
-            comment = f' "{desc}"' if desc and desc != "nan" else ""
-            lines.append(f"        {ftype} {sf}{marker}{comment}")
-        if total > max_fields:
-            lines.append(f'        string _and_{total - max_fields}_more "{total - max_fields} more fields"')
-        lines.append("    }")
 
-    # ── Relationships ──
-    seen_rel: set = set()
-    for _, r in er_edges.iterrows():
-        src   = str(r["source_sql_table_name"])
-        tgt   = str(r["target_sql_table_name"])
-        field = str(r["source_sql_field_name"])
-        card  = str(r.get("relationship_cardinality", ""))
+            tbl_f = fields[fields["class_name"] == cn].sort_values("member_order")
+            fk_fields = set(
+                er_edges[er_edges["source_sql_table_name"] == tbl]["source_sql_field_name"]
+            )
+            total = len(tbl_f)
+            shown = tbl_f.head(max_fields)
 
-        if src not in all_tables or tgt not in all_tables:
-            continue
-        key = (src, tgt, field[:20])
-        if key in seen_rel:
-            continue
-        seen_rel.add(key)
+            lines.append(f"    {tbl} {{")
+            for _, fr in shown.iterrows():
+                sf = re.sub(r"[^a-zA-Z0-9_]", "_", str(fr["sql_field_name"]))
+                if not sf or sf == "nan":
+                    continue
+                ftype  = simplify_iris_type(str(fr["member_type"]))
+                marker = " FK" if fr["sql_field_name"] in fk_fields else ""
+                desc   = str(fr["description"])[:28].replace('"', "'")
+                comment = f' "{desc}"' if desc and desc != "nan" else ""
+                lines.append(f"        {ftype} {sf}{marker}{comment}")
+            if total > max_fields:
+                lines.append(f'        string _and_{total - max_fields}_more "{total - max_fields} more fields"')
+            lines.append("    }")
 
-        arrow = "||--o{" if card == "children" else "}o--||"
-        label = field[:28].replace('"', "'") if field and field != "nan" else "ref"
-        lines.append(f'    {src} {arrow} {tgt} : "{label}"')
+        # ── Relationships ──
+        seen_rel: set = set()
+        for _, r in er_edges.iterrows():
+            src   = str(r["source_sql_table_name"])
+            tgt   = str(r["target_sql_table_name"])
+            field = str(r["source_sql_field_name"])
+            card  = str(r.get("relationship_cardinality", ""))
 
-    mermaid_code = "\n".join(lines)
+            if src not in all_tables or tgt not in all_tables:
+                continue
+            key = (src, tgt, field[:20])
+            if key in seen_rel:
+                continue
+            seen_rel.add(key)
 
-    _code_js = mermaid_code.replace("\\", "\\\\").replace("`", "\\`").replace("$", "\\$")
+            arrow = "||--o{" if card == "children" else "}o--||"
+            label = field[:28].replace('"', "'") if field and field != "nan" else "ref"
+            lines.append(f'    {src} {arrow} {tgt} : "{label}"')
 
-    html = f"""<!DOCTYPE html>
+        mermaid_code = "\n".join(lines)
+
+        _code_js = mermaid_code.replace("\\", "\\\\").replace("`", "\\`").replace("$", "\\$")
+
+        html = f"""<!DOCTYPE html>
 <html><head>
 <meta charset="utf-8">
 <style>
@@ -1059,7 +1129,17 @@ document.getElementById("btn-png").onclick = function() {{
 </script>
 </body></html>"""
 
-    return html, mermaid_code
+        return html, mermaid_code
+    except Exception as e:
+        err_html = (
+            "<html><body style='background:#1e2130;color:#e0e0e0;"
+            "font-family:sans-serif;padding:24px'>"
+            f"<b style='color:salmon'>ER diagram failed to build:</b><br><pre>{e}</pre>"
+            "<br><button onclick='location.reload()' style='padding:6px 14px;"
+            "border-radius:4px;cursor:pointer'>Refresh page</button>"
+            "</body></html>"
+        )
+        return err_html, f"# error: {e}"
 
 
 def build_cytoscape_html(
@@ -1485,19 +1565,47 @@ document.getElementById('bpng').onclick = function(){{
     return html
 
 
+def _cytoscape_error_html(err: Exception, height: int) -> str:
+    return (
+        f"<html><body style='background:#1e2130;color:#e0e0e0;"
+        f"font-family:sans-serif;padding:24px;height:{height}px'>"
+        f"<b style='color:salmon'>Interactive diagram failed to build:</b><br><pre>{err}</pre>"
+        "<br><button onclick='location.reload()' style='padding:6px 14px;"
+        "border-radius:4px;cursor:pointer'>Refresh page</button>"
+        "</body></html>"
+    )
+
+
 # ─── Load all data ────────────────────────────────────────────────────────────
 
-tables, fields, fk, classes, members = load_data()
-COMPLETENESS = compute_completeness(fields)
-HUB_DF, ORPHAN_DF, DEP_COUNTS = compute_analytics(fk, tables)
+try:
+    tables, fields, fk, classes, members = load_data()
+except Exception as _load_err:
+    st.error(f"**Fatal: could not load app data.** {_load_err}\n\nPlease refresh the page.")
+    st.stop()
 
-MODULE_SUMMARY = (
-    tables.groupby(["module_name", "module_prefix"])
-    .size()
-    .reset_index(name="count")
-    .sort_values("count", ascending=False)
-    .reset_index(drop=True)
-)
+try:
+    COMPLETENESS = compute_completeness(fields)
+except Exception:
+    COMPLETENESS = {}
+
+try:
+    HUB_DF, ORPHAN_DF, DEP_COUNTS = compute_analytics(fk, tables)
+except Exception:
+    _empty = pd.DataFrame()
+    HUB_DF, ORPHAN_DF = _empty, _empty
+    DEP_COUNTS = pd.DataFrame(columns=["source_module", "target_module", "count"])
+
+try:
+    MODULE_SUMMARY = (
+        tables.groupby(["module_name", "module_prefix"])
+        .size()
+        .reset_index(name="count")
+        .sort_values("count", ascending=False)
+        .reset_index(drop=True)
+    )
+except Exception:
+    MODULE_SUMMARY = pd.DataFrame(columns=["module_name", "module_prefix", "count"])
 
 # ─── Session state ────────────────────────────────────────────────────────────
 
@@ -2526,15 +2634,18 @@ elif st.session_state.page in ("browse", "detail"):
                     if len(candidate_tables) == 1:
                         st.info("No FK relationships found for this table.")
                     else:
-                        cy_fk_html = build_cytoscape_html(
-                            candidate_tables,
-                            include_fields=fk_show_fields,
-                            max_fields=int(fk_max_fields),
-                            cross_module=False,
-                            center_table=tbl_name,
-                            height=640,
-                        )
-                        components.html(cy_fk_html, height=650, scrolling=False)
+                        try:
+                            cy_fk_html = build_cytoscape_html(
+                                candidate_tables,
+                                include_fields=fk_show_fields,
+                                max_fields=int(fk_max_fields),
+                                cross_module=False,
+                                center_table=tbl_name,
+                                height=640,
+                            )
+                            components.html(cy_fk_html, height=650, scrolling=False)
+                        except Exception as _cy_err:
+                            components.html(_cytoscape_error_html(_cy_err, 640), height=650, scrolling=False)
 
                 # ── Split view: two Mermaid diagrams side by side ──
                 elif fk_include == "Split view (Outgoing | Incoming)":
@@ -3211,15 +3322,18 @@ elif st.session_state.page == "analytics":
             st.caption(f"Entities: **{len(er_tables)}** tables")
 
             if er_renderer == "Interactive (Cytoscape)":
-                cy_html = build_cytoscape_html(
-                    er_tables,
-                    include_fields=show_fields,
-                    max_fields=int(max_f),
-                    cross_module=cross_mod,
-                    center_table=center_er_table,
-                    height=680,
-                )
-                components.html(cy_html, height=690, scrolling=False)
+                try:
+                    cy_html = build_cytoscape_html(
+                        er_tables,
+                        include_fields=show_fields,
+                        max_fields=int(max_f),
+                        cross_module=cross_mod,
+                        center_table=center_er_table,
+                        height=680,
+                    )
+                    components.html(cy_html, height=690, scrolling=False)
+                except Exception as _cy_err:
+                    components.html(_cytoscape_error_html(_cy_err, 680), height=690, scrolling=False)
             else:
                 er_html, er_code = build_er_mermaid(
                     er_tables,

@@ -322,6 +322,23 @@ Events are stored in `usage_log.json` (capped at 10,000 most recent entries).
 
 ---
 
+## Error handling
+
+The app is designed to degrade gracefully rather than crash:
+
+| Failure point | Behaviour |
+|---|---|
+| `iris_data_dict.xlsx` missing or unreadable | Clear `st.error` message + `st.stop()` — no raw traceback |
+| Corrupted JSON file (`translations.json`, `tags.json`, `metadata.json`, `changelog.json`, `usage_log.json`) | Returns an empty default (`{}` / `[]`) — existing data in memory is unaffected |
+| Disk full / permission error on save | `st.warning(...)` shown — app continues running without crashing |
+| Usage logging / changelog write failure | Silent pass — logging must never crash the app |
+| Startup analytics / completeness computation fails | Returns empty DataFrames — app loads with reduced analytics |
+| Network graph (`build_pyvis_html`) fails | Error message rendered inside the iframe with a **Refresh page** button |
+| Mermaid diagram (`build_mermaid_html`, `build_er_mermaid`) fails | Error HTML returned; Mermaid JS itself also shows render errors inline |
+| Cytoscape diagram call site fails | `_cytoscape_error_html()` rendered inside the iframe with a **Refresh page** button |
+
+---
+
 ## Data source
 
 The app reads five sheets from `iris_data_dict.xlsx`:
@@ -401,7 +418,7 @@ These files are git-ignored and created automatically by the app:
 ## Project structure
 
 ```
-app.py                        # Streamlit application (~2900 lines)
+app.py                        # Streamlit application (~3000 lines)
 requirements.txt              # Python dependencies
 Create_JSON.ipynb             # Notebook: xlsx → JSON export
 iris_data_dict.xlsx           # Source data (5 sheets)

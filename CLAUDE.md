@@ -23,7 +23,7 @@ Admin passcode lives in `.streamlit/secrets.toml` (git-ignored; copy from `.stre
 
 ## app.py architecture
 
-The entire app is a single-file Streamlit app (~2900 lines). There is no routing framework — navigation is driven by `st.session_state.page`.
+The entire app is a single-file Streamlit app (~3000 lines). There is no routing framework — navigation is driven by `st.session_state.page`.
 
 ### Data loading
 
@@ -37,6 +37,8 @@ Three derived globals are computed at startup (also cached):
 - `COMPLETENESS` — `{class_name: pct}` EN description fill rate per table
 - `HUB_DF`, `ORPHAN_DF`, `DEP_COUNTS` — analytics aggregates
 - `MODULE_SUMMARY` — module list with table counts
+
+The startup block wraps each computation in its own `try/except` so a failure in analytics does not prevent the rest of the app from loading. `load_data()` itself calls `st.stop()` on failure with a clear error message — never a raw traceback.
 
 The `fk` dataframe has a `resolve_status` column; always filter `fk[fk["resolve_status"] == "resolved"]` before using FK data. Unresolved rows (missing `source_sql_field_name`) are noise.
 
@@ -64,16 +66,17 @@ ADMIN_PASSCODE  # read from st.secrets["admin_passcode"], fallback "admin1234"
 | Function | Purpose |
 |---|---|
 | `collect_graph_data(center, depth, fk_df, tables_df)` | BFS over resolved FKs → `(nodes_dict, edges_list)`. Cached. Shared by pyvis and Mermaid graph renderers. |
-| `build_pyvis_html(center, nodes_dict, edges)` | Renders pyvis network to HTML string via a temp file. |
-| `build_mermaid_html(center, nodes_dict, edges, direction, group_modules)` | Mermaid flowchart for the Graph page. Returns `(html, code)`. |
+| `build_pyvis_html(center, nodes_dict, edges)` | Renders pyvis network to HTML string via a temp file. On failure returns error HTML with a Refresh button. |
+| `build_mermaid_html(center, nodes_dict, edges, direction, group_modules)` | Mermaid flowchart for the Graph page. Returns `(html, code)`. On failure returns `(error_html, "# error: ...")`. |
 | `_module_mermaid_html(mermaid_code)` | Wraps raw Mermaid code in the full HTML shell for the Module Dependency Map. Returns `html`. |
 | `build_module_mermaid(dep_counts, direction, collapse_bidir, center_module)` | Builds Mermaid code + calls `_module_mermaid_html`. Returns `(html, code)`. |
-| `build_er_mermaid(table_names, include_fields, max_fields, cross_module, direction)` | Mermaid `erDiagram` for the FK Diagram tab and Analytics → ER Diagram. Returns `(html, code)`. |
-| `build_cytoscape_html(table_names, include_fields, max_fields, cross_module, center_table, height)` | Interactive Cytoscape.js ER diagram. Returns `html` string. See below. |
+| `build_er_mermaid(table_names, include_fields, max_fields, cross_module, direction)` | Mermaid `erDiagram` for the FK Diagram tab and Analytics → ER Diagram. Returns `(html, code)`. On failure returns `(error_html, "# error: ...")`. |
+| `build_cytoscape_html(table_names, include_fields, max_fields, cross_module, center_table, height)` | Interactive Cytoscape.js ER diagram. Returns `html` string. Call sites wrap it in `try/except` → `_cytoscape_error_html()`. |
+| `_cytoscape_error_html(err, height)` | Returns a self-contained error HTML page with a Refresh button. Used by Cytoscape call-site error handlers. |
 | `render_admin_gate(target_page)` | Renders passcode form for locked pages. Sets `admin_authenticated` on success and calls `st.rerun()`. |
 | `simplify_iris_type(type_str)` | Maps IRIS verbose types (`%String(...)`, `%Date`, `CTCompany`) to short ER labels (`string`, `date`, `ref`). |
 | `schema_to_csv(...)` / `schema_to_excel(...)` | Export helpers for the Schema tab download buttons. |
-| `compute_analytics(fk_df, tables_df)` | Returns `(hub_df, orphan_df, dep_counts)`. Cached. |
+| `compute_analytics(fk_df, tables_df)` | Returns `(hub_df, orphan_df, dep_counts)`. Cached. On failure returns empty DataFrames. |
 
 ### Cytoscape.js rendering (`build_cytoscape_html`)
 
@@ -136,6 +139,11 @@ Tab selection is persisted across `st.rerun()` calls via a `localStorage` JS sni
 | `load_metadata()` / `save_metadata(data)` | `metadata.json` | Governance metadata per table (owner, steward, cert, etc.) |
 | `load_changelog()` / `append_changelog(action, table, details)` | `changelog.json` | Audit log; capped at 1,000 entries |
 | `load_usage_log()` / `log_event(event, details)` | `usage_log.json` | Usage events; capped at 10,000 entries |
+
+**Error handling contract for persistence helpers:**
+- All `load_*` functions catch `json.JSONDecodeError` and `OSError` and return an empty default — a corrupted file never crashes the app.
+- All `save_*` functions catch `OSError` and call `st.warning(...)` — a disk/permission error is surfaced to the user but does not crash the render cycle.
+- `log_event` and `append_changelog` use a fully silent `except Exception: pass` — logging must never take the app down.
 
 ### Tags and metadata
 
