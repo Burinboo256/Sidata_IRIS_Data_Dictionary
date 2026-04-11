@@ -26,6 +26,7 @@ EXCEL_PATH = "iris_data_dict.xlsx"
 TRANSLATIONS_PATH = "translations.json"
 TAGS_PATH = "tags.json"
 CHANGELOG_PATH = "changelog.json"
+METADATA_PATH = "metadata.json"
 MAX_GRAPH_NODES = 60
 
 PREDEFINED_TAGS = ["PII", "financial", "deprecated", "master-data", "staging", "lookup", "audit", "critical"]
@@ -37,6 +38,15 @@ TAG_COLORS = {
     "master-data": ("badge-purple", "#6b3fbf"),
     "critical":    ("badge-red",    "#c00000"),
 }
+
+CERT_OPTIONS = ["", "Certified", "Draft", "Deprecated", "Experimental"]
+CERT_COLORS = {
+    "Certified":    ("badge-green",  "#1a7040"),
+    "Draft":        ("badge-orange", "#b06000"),
+    "Deprecated":   ("badge-red",    "#c00000"),
+    "Experimental": ("badge-purple", "#6b3fbf"),
+}
+UPDATE_FREQ_OPTIONS = ["", "Real-time", "Daily", "Weekly", "Monthly", "Quarterly", "Ad-hoc"]
 
 # ─── Theme helpers ────────────────────────────────────────────────────────────
 
@@ -329,35 +339,45 @@ def build_mermaid_html(
     )
 
     mermaid_code = "\n".join(lines)
+    _code_js = mermaid_code.replace("\\", "\\\\").replace("`", "\\`").replace("$", "\\$")
 
     html = f"""<!DOCTYPE html>
 <html><head>
 <meta charset="utf-8">
-<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <style>
   body {{
     margin: 0; padding: 14px;
     background: {t["bg"]}; overflow: auto;
     font-family: 'Segoe UI', sans-serif;
   }}
-  .mermaid {{ min-height: 420px; }}
-  .mermaid svg {{ max-width: 100% !important; height: auto; }}
+  #diagram svg {{ max-width: 100% !important; height: auto; }}
 </style>
 </head>
 <body>
-<pre class="mermaid">{mermaid_code}</pre>
+<div id="diagram"></div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <script>
 mermaid.initialize({{
-  startOnLoad: true,
+  startOnLoad: false,
   theme: "{t["mermaid"]}",
-  flowchart: {{
-    useMaxWidth: false,
-    htmlLabels: true,
-    curve: "basis",
-    padding: 20
-  }},
+  flowchart: {{ useMaxWidth: false, htmlLabels: true, curve: "basis", padding: 20 }},
   securityLevel: "loose"
 }});
+var _done = false;
+var _code = `{_code_js}`;
+async function _render() {{
+  if (_done) return;
+  if (document.body.offsetWidth === 0) {{ setTimeout(_render, 150); return; }}
+  _done = true;
+  try {{
+    var r = await mermaid.render("flow-svg", _code);
+    document.getElementById("diagram").innerHTML = r.svg;
+  }} catch(e) {{
+    document.getElementById("diagram").innerHTML =
+      "<pre style='color:salmon;white-space:pre-wrap'>" + e.message + "</pre>";
+  }}
+}}
+_render();
 </script>
 </body></html>"""
 
@@ -392,6 +412,18 @@ def load_tags() -> dict:
 
 def save_tags(data: dict):
     with open(TAGS_PATH, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def load_metadata() -> dict:
+    if os.path.exists(METADATA_PATH):
+        with open(METADATA_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+
+def save_metadata(data: dict):
+    with open(METADATA_PATH, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
@@ -553,24 +585,40 @@ def compute_analytics(_fk_df, _tables_df) -> tuple:
 
 def _module_mermaid_html(mermaid_code: str) -> str:
     t = _theme()
+    _code_js = mermaid_code.replace("\\", "\\\\").replace("`", "\\`").replace("$", "\\$")
     return f"""<!DOCTYPE html>
 <html><head>
 <meta charset="utf-8">
-<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <style>
   body {{ margin:0; padding:14px; background:{t["bg"]}; overflow:auto;
          font-family:'Segoe UI',sans-serif; }}
-  .mermaid {{ min-height:400px; }}
-  .mermaid svg {{ max-width:100% !important; height:auto; }}
+  #diagram svg {{ max-width:100% !important; height:auto; }}
 </style></head><body>
-<pre class="mermaid">{mermaid_code}</pre>
+<div id="diagram"></div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <script>
 mermaid.initialize({{
-  startOnLoad:true, theme:"{t["mermaid"]}",
+  startOnLoad:false, theme:"{t["mermaid"]}",
   flowchart:{{ useMaxWidth:false, htmlLabels:true, curve:"basis", padding:24 }},
   securityLevel:"loose"
 }});
-</script></body></html>"""
+var _done = false;
+var _code = `{_code_js}`;
+async function _render() {{
+  if (_done) return;
+  if (document.body.offsetWidth === 0) {{ setTimeout(_render, 150); return; }}
+  _done = true;
+  try {{
+    var r = await mermaid.render("mod-svg", _code);
+    document.getElementById("diagram").innerHTML = r.svg;
+  }} catch(e) {{
+    document.getElementById("diagram").innerHTML =
+      "<pre style='color:salmon;white-space:pre-wrap'>" + e.message + "</pre>";
+  }}
+}}
+_render();
+</script>
+</body></html>"""
 
 
 def build_module_mermaid(
@@ -810,25 +858,42 @@ def build_er_mermaid(
 
     mermaid_code = "\n".join(lines)
 
+    _code_js = mermaid_code.replace("\\", "\\\\").replace("`", "\\`").replace("$", "\\$")
+
     html = f"""<!DOCTYPE html>
 <html><head>
 <meta charset="utf-8">
-<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <style>
   body {{ margin:0; padding:14px; background:{t["bg"]}; overflow:auto;
          font-family:'Segoe UI',sans-serif; }}
-  .mermaid {{ min-height:500px; }}
-  .mermaid svg {{ max-width:100% !important; height:auto; }}
+  #diagram svg {{ max-width:100% !important; height:auto; }}
 </style></head><body>
-<pre class="mermaid">{mermaid_code}</pre>
+<div id="diagram"></div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <script>
 mermaid.initialize({{
-  startOnLoad: true,
+  startOnLoad: false,
   theme: "{t["mermaid"]}",
   er: {{ useMaxWidth: false, layoutDirection: "{direction}", diagramPadding: 24, entityPadding: 12 }},
   securityLevel: "loose"
 }});
-</script></body></html>"""
+var _done = false;
+var _code = `{_code_js}`;
+async function _render() {{
+  if (_done) return;
+  if (document.body.offsetWidth === 0) {{ setTimeout(_render, 150); return; }}
+  _done = true;
+  try {{
+    var r = await mermaid.render("er-svg", _code);
+    document.getElementById("diagram").innerHTML = r.svg;
+  }} catch(e) {{
+    document.getElementById("diagram").innerHTML =
+      "<pre style='color:salmon;white-space:pre-wrap'>" + e.message + "</pre>";
+  }}
+}}
+_render();
+</script>
+</body></html>"""
 
     return html, mermaid_code
 
@@ -868,6 +933,9 @@ if "translations" not in st.session_state:
 
 if "tags" not in st.session_state:
     st.session_state.tags = load_tags()
+
+if "metadata" not in st.session_state:
+    st.session_state.metadata = load_metadata()
 
 # ─── URL deep linking ─────────────────────────────────────────────────────────
 # On first load, honour ?table=TABLE_NAME in the URL.
@@ -996,46 +1064,138 @@ elif st.session_state.page == "search":
         label_visibility="collapsed",
     )
 
-    if query:
-        q = query.strip().lower()
-        t_mask = (
-            tables["sql_table_name"].str.lower().str.contains(q, na=False)
-            | tables["class_description"].str.lower().str.contains(q, na=False)
-            | tables["module_name"].str.lower().str.contains(q, na=False)
-        )
-        matched_tables = tables[t_mask].copy()
-
-        f_mask = (
-            fields["sql_field_name"].str.lower().str.contains(q, na=False)
-            | fields["description"].str.lower().str.contains(q, na=False)
-            | fields["member_type"].str.lower().str.contains(q, na=False)
-        )
-        matched_fields = fields[f_mask].copy()
-
-        # Also search Thai translations
-        tbl_map = tables.set_index("class_name")["sql_table_name"].to_dict()
-        th_hits = []
-        for class_nm, field_dict in st.session_state.translations.items():
-            for field_nm, thai_txt in field_dict.items():
-                if q in str(thai_txt).lower():
-                    th_hits.append({"class_name": class_nm, "sql_field_name": field_nm, "thai_text": thai_txt})
-        if th_hits:
-            th_df = pd.DataFrame(th_hits)
-            th_df["Table"] = th_df["class_name"].map(tbl_map)
-            # Merge with fields for EN description
-            th_df = th_df.merge(
-                fields[["class_name", "sql_field_name", "description", "member_type"]],
-                on=["class_name", "sql_field_name"], how="left",
+    # ── Advanced Filters ──────────────────────────────────────────────────────
+    with st.expander("🔍 Advanced Filters", expanded=False):
+        af1, af2, af3 = st.columns(3)
+        with af1:
+            adv_cert = st.multiselect(
+                "Certification status", CERT_OPTIONS[1:], key="adv_cert",
+                help="Filter tables by certification status"
             )
-            # Add to matched_fields if not already there
-            th_field_keys = set(zip(th_df["class_name"], th_df["sql_field_name"]))
-            existing_keys = set(zip(matched_fields["class_name"], matched_fields["sql_field_name"]))
-            new_keys = th_field_keys - existing_keys
-            new_rows = th_df[th_df.apply(lambda r: (r["class_name"], r["sql_field_name"]) in new_keys, axis=1)]
-            if not new_rows.empty:
-                matched_fields = pd.concat([matched_fields, new_rows[matched_fields.columns]], ignore_index=True)
+            adv_tags = st.multiselect(
+                "Tags", PREDEFINED_TAGS, key="adv_tags",
+                help="Filter tables that have all selected tags"
+            )
+        with af2:
+            adv_has_fk = st.checkbox("Has FK relationships", key="adv_has_fk")
+            adv_no_fk = st.checkbox("No FK (orphan tables)", key="adv_no_fk")
+            adv_low_completeness = st.checkbox(
+                "Low EN description (<50%)", key="adv_low_comp",
+                help="Show tables where less than 50% of fields have English descriptions"
+            )
+        with af3:
+            _all_field_types = sorted(
+                fields["member_type"].dropna().astype(str)
+                .apply(lambda x: simplify_iris_type(x)).unique().tolist()
+            )
+            adv_dtype = st.multiselect(
+                "Field datatype", _all_field_types, key="adv_dtype",
+                help="Filter fields by simplified datatype"
+            )
+            adv_missing_desc = st.checkbox(
+                "Fields missing EN description", key="adv_missing_desc",
+                help="Show only fields that have no English description"
+            )
+            adv_fk_fields_only = st.checkbox(
+                "FK fields only", key="adv_fk_only",
+                help="Show only fields that are foreign keys"
+            )
+
+    has_adv_filters = any([adv_cert, adv_tags, adv_has_fk, adv_no_fk, adv_low_completeness,
+                           adv_dtype, adv_missing_desc, adv_fk_fields_only])
+
+    if query or has_adv_filters:
+        q = query.strip().lower()
+
+        if q:
+            t_mask = (
+                tables["sql_table_name"].str.lower().str.contains(q, na=False)
+                | tables["class_description"].str.lower().str.contains(q, na=False)
+                | tables["module_name"].str.lower().str.contains(q, na=False)
+            )
+            matched_tables = tables[t_mask].copy()
+
+            f_mask = (
+                fields["sql_field_name"].str.lower().str.contains(q, na=False)
+                | fields["description"].str.lower().str.contains(q, na=False)
+                | fields["member_type"].str.lower().str.contains(q, na=False)
+            )
+            matched_fields = fields[f_mask].copy()
         else:
-            th_df = pd.DataFrame()
+            matched_tables = tables.copy()
+            matched_fields = fields.copy()
+
+        # Apply table advanced filters
+        if adv_cert:
+            cert_tables = {
+                tbl for tbl, meta in st.session_state.metadata.items()
+                if meta.get("certification", "") in adv_cert
+            }
+            matched_tables = matched_tables[matched_tables["sql_table_name"].isin(cert_tables)]
+
+        if adv_tags:
+            tag_tables = {
+                tbl for tbl, tlist in st.session_state.tags.items()
+                if all(tag in tlist for tag in adv_tags)
+            }
+            matched_tables = matched_tables[matched_tables["sql_table_name"].isin(tag_tables)]
+
+        if adv_has_fk:
+            fk_res = fk[fk["resolve_status"] == "resolved"]
+            tbls_with_fk = set(fk_res["source_sql_table_name"]) | set(fk_res["target_sql_table_name"])
+            matched_tables = matched_tables[matched_tables["sql_table_name"].isin(tbls_with_fk)]
+
+        if adv_no_fk:
+            fk_res = fk[fk["resolve_status"] == "resolved"]
+            tbls_with_fk = set(fk_res["source_sql_table_name"]) | set(fk_res["target_sql_table_name"])
+            matched_tables = matched_tables[~matched_tables["sql_table_name"].isin(tbls_with_fk)]
+
+        if adv_low_completeness:
+            low_tbls = {cn for cn, pct in COMPLETENESS.items() if pct < 50}
+            matched_tables = matched_tables[matched_tables["class_name"].isin(low_tbls)]
+
+        # Apply field advanced filters
+        if adv_dtype:
+            matched_fields = matched_fields[
+                matched_fields["member_type"].astype(str).apply(simplify_iris_type).isin(adv_dtype)
+            ]
+
+        if adv_missing_desc:
+            matched_fields = matched_fields[
+                matched_fields["description"].astype(str).str.strip().isin(["", "nan"])
+            ]
+
+        if adv_fk_fields_only:
+            fk_res = fk[fk["resolve_status"] == "resolved"]
+            fk_field_keys = set(zip(fk_res["source_class_name"], fk_res["source_sql_field_name"]))
+            matched_fields = matched_fields[
+                matched_fields.apply(
+                    lambda r: (r["class_name"], r["sql_field_name"]) in fk_field_keys, axis=1
+                )
+            ]
+
+        # Also search Thai translations (text query only)
+        tbl_map = tables.set_index("class_name")["sql_table_name"].to_dict()
+        th_df = pd.DataFrame()
+        if q:
+            th_hits = []
+            for class_nm, field_dict in st.session_state.translations.items():
+                for field_nm, thai_txt in field_dict.items():
+                    if q in str(thai_txt).lower():
+                        th_hits.append({"class_name": class_nm, "sql_field_name": field_nm, "thai_text": thai_txt})
+            if th_hits:
+                th_df = pd.DataFrame(th_hits)
+                th_df["Table"] = th_df["class_name"].map(tbl_map)
+                th_df = th_df.merge(
+                    fields[["class_name", "sql_field_name", "description", "member_type"]],
+                    on=["class_name", "sql_field_name"], how="left",
+                )
+                th_field_keys = set(zip(th_df["class_name"], th_df["sql_field_name"]))
+                existing_keys = set(zip(matched_fields["class_name"], matched_fields["sql_field_name"]))
+                new_keys = th_field_keys - existing_keys
+                new_rows = th_df[th_df.apply(lambda r: (r["class_name"], r["sql_field_name"]) in new_keys, axis=1)]
+                if not new_rows.empty:
+                    matched_fields = pd.concat([matched_fields, new_rows[matched_fields.columns]], ignore_index=True)
 
         st.markdown(f"**{len(matched_tables)}** tables · **{len(matched_fields)}** fields")
 
@@ -1054,6 +1214,12 @@ elif st.session_state.page == "search":
                     "module_name": "Module", "class_description": "Description",
                 }).copy()
                 disp["Description"] = disp["Description"].str.replace("\n", " ").str[:120]
+                disp["Certification"] = disp["Table"].map(
+                    lambda t: st.session_state.metadata.get(t, {}).get("certification", "")
+                )
+                disp["Owner"] = disp["Table"].map(
+                    lambda t: st.session_state.metadata.get(t, {}).get("owner", "")
+                )
                 evt = st.dataframe(disp, width="stretch", hide_index=True,
                                    selection_mode="single-row", on_select="rerun",
                                    key="search_t_sel")
@@ -1072,8 +1238,9 @@ elif st.session_state.page == "search":
                         row["class_name"], {}
                     ).get(str(row["sql_field_name"]), "")
                 matched_fields["TH Description"] = matched_fields.apply(_get_thai, axis=1)
+                matched_fields["Datatype"] = matched_fields["member_type"].astype(str).apply(simplify_iris_type)
                 disp = matched_fields[
-                    ["sql_field_name", "Table", "description", "member_type", "TH Description"]
+                    ["sql_field_name", "Table", "Datatype", "description", "member_type", "TH Description"]
                 ].rename(columns={
                     "sql_field_name": "Field", "description": "EN Description", "member_type": "IRIS Type",
                 }).copy()
@@ -1098,7 +1265,7 @@ elif st.session_state.page in ("browse", "detail"):
         if st.session_state.browse_module in module_options else 0
     )
 
-    col_m, col_f, col_tag = st.columns([2, 3, 2])
+    col_m, col_f, col_tag, col_cert = st.columns([2, 3, 2, 2])
     with col_m:
         sel_module = st.selectbox("Module", module_options, index=default_mod_idx, key="browse_mod_select")
         st.session_state.browse_module = sel_module
@@ -1108,6 +1275,10 @@ elif st.session_state.page in ("browse", "detail"):
         st.session_state.browse_filter = name_filter
     with col_tag:
         tag_filter = st.selectbox("Filter by tag", ["All"] + PREDEFINED_TAGS, key="browse_tag_filter")
+    with col_cert:
+        cert_filter = st.selectbox(
+            "Filter by certification", ["All"] + CERT_OPTIONS[1:], key="browse_cert_filter"
+        )
 
     filtered = tables.copy()
     if sel_module != "All modules":
@@ -1119,6 +1290,12 @@ elif st.session_state.page in ("browse", "detail"):
     if tag_filter != "All":
         tag_tables = {tbl for tbl, tlist in st.session_state.tags.items() if tag_filter in tlist}
         filtered = filtered[filtered["sql_table_name"].isin(tag_tables)]
+    if cert_filter != "All":
+        cert_tables = {
+            tbl for tbl, meta in st.session_state.metadata.items()
+            if meta.get("certification", "") == cert_filter
+        }
+        filtered = filtered[filtered["sql_table_name"].isin(cert_tables)]
     filtered = filtered.sort_values("sql_table_name").reset_index(drop=True)
 
     st.caption(f"{len(filtered):,} tables")
@@ -1129,6 +1306,12 @@ elif st.session_state.page in ("browse", "detail"):
     disp["Completeness"] = disp["class_name"].map(COMPLETENESS).fillna(0).astype(int)
     disp["Tags"] = disp["sql_table_name"].map(
         lambda t: ", ".join(st.session_state.tags.get(t, []))
+    )
+    disp["Certification"] = disp["sql_table_name"].map(
+        lambda t: st.session_state.metadata.get(t, {}).get("certification", "")
+    )
+    disp["Owner"] = disp["sql_table_name"].map(
+        lambda t: st.session_state.metadata.get(t, {}).get("owner", "")
     )
     disp = disp.drop(columns=["class_name"]).rename(columns={
         "sql_table_name": "Table", "module_prefix": "Prefix",
@@ -1180,7 +1363,34 @@ elif st.session_state.page in ("browse", "detail"):
                 for tag in tbl_tags:
                     cls, _ = TAG_COLORS.get(tag, ("badge", "#7eb8f7"))
                     badge_html += f'<span class="badge {cls}">{tag}</span>'
+                # Certification badge
+                tbl_meta = st.session_state.metadata.get(tbl_name, {})
+                cert = tbl_meta.get("certification", "")
+                if cert:
+                    cert_cls, _ = CERT_COLORS.get(cert, ("badge", "#7eb8f7"))
+                    badge_html += f'<span class="badge {cert_cls}">✓ {cert}</span>'
                 st.markdown(badge_html, unsafe_allow_html=True)
+
+                # Owner / steward / contact row
+                owner   = tbl_meta.get("owner", "")
+                steward = tbl_meta.get("steward", "")
+                contact = tbl_meta.get("contact", "")
+                refresh_freq = tbl_meta.get("update_frequency", "")
+                last_refresh = tbl_meta.get("last_refresh", "")
+                meta_parts = []
+                if owner:
+                    meta_parts.append(f"👤 **Owner:** {owner}")
+                if steward:
+                    meta_parts.append(f"🛡️ **Steward:** {steward}")
+                if contact:
+                    meta_parts.append(f"📧 **Contact:** {contact}")
+                if refresh_freq:
+                    meta_parts.append(f"🔄 **Frequency:** {refresh_freq}")
+                if last_refresh:
+                    meta_parts.append(f"📅 **Last refresh:** {last_refresh}")
+                if meta_parts:
+                    st.markdown("  ·  ".join(meta_parts))
+
                 st.caption(f"🔗 Share: `?table={tbl_name}`")
 
                 # Tag management
@@ -1212,6 +1422,62 @@ elif st.session_state.page in ("browse", "detail"):
                                     st.rerun()
                             with lbl_col:
                                 st.markdown(f"`{tag}`")
+
+                # Metadata management
+                with st.expander("📊 Manage Metadata"):
+                    cur_meta = st.session_state.metadata.get(tbl_name, {})
+                    mc1, mc2 = st.columns(2)
+                    with mc1:
+                        m_owner = st.text_input(
+                            "Data Owner", value=cur_meta.get("owner", ""),
+                            key=f"meta_owner_{tbl_name}",
+                            placeholder="e.g. Finance Team",
+                        )
+                        m_steward = st.text_input(
+                            "Data Steward", value=cur_meta.get("steward", ""),
+                            key=f"meta_steward_{tbl_name}",
+                            placeholder="e.g. Jane Smith",
+                        )
+                        m_contact = st.text_input(
+                            "Contact", value=cur_meta.get("contact", ""),
+                            key=f"meta_contact_{tbl_name}",
+                            placeholder="e.g. jane@company.com",
+                        )
+                    with mc2:
+                        cert_idx = CERT_OPTIONS.index(cur_meta.get("certification", "")) if cur_meta.get("certification", "") in CERT_OPTIONS else 0
+                        m_cert = st.selectbox(
+                            "Certification Status", CERT_OPTIONS,
+                            index=cert_idx,
+                            key=f"meta_cert_{tbl_name}",
+                        )
+                        freq_idx = UPDATE_FREQ_OPTIONS.index(cur_meta.get("update_frequency", "")) if cur_meta.get("update_frequency", "") in UPDATE_FREQ_OPTIONS else 0
+                        m_freq = st.selectbox(
+                            "Update Frequency", UPDATE_FREQ_OPTIONS,
+                            index=freq_idx,
+                            key=f"meta_freq_{tbl_name}",
+                        )
+                        m_refresh = st.text_input(
+                            "Last Refresh Date", value=cur_meta.get("last_refresh", ""),
+                            key=f"meta_refresh_{tbl_name}",
+                            placeholder="e.g. 2026-04-01",
+                        )
+                    if st.button("💾 Save Metadata", key=f"meta_save_{tbl_name}", type="primary"):
+                        new_meta = {
+                            "owner": m_owner.strip(),
+                            "steward": m_steward.strip(),
+                            "contact": m_contact.strip(),
+                            "certification": m_cert,
+                            "update_frequency": m_freq,
+                            "last_refresh": m_refresh.strip(),
+                        }
+                        # Remove empty values
+                        new_meta = {k: v for k, v in new_meta.items() if v}
+                        st.session_state.metadata[tbl_name] = new_meta
+                        save_metadata(st.session_state.metadata)
+                        append_changelog("metadata_saved", tbl_name,
+                            f"cert={new_meta.get('certification','')}, owner={new_meta.get('owner','')}, freq={new_meta.get('update_frequency','')}")
+                        st.success("Metadata saved.")
+                        st.rerun()
 
             with hcol2:
                 score = COMPLETENESS.get(class_name, 0)
@@ -1511,7 +1777,7 @@ elif st.session_state.page in ("browse", "detail"):
                     )
                 with fk_ec2:
                     fk_show_fields = st.checkbox(
-                        "Show fields", value=True, key=f"fk_er_fields_{tbl_name}"
+                        "Show fields", value=False, key=f"fk_er_fields_{tbl_name}"
                     )
                     fk_max_fields = st.number_input(
                         "Max fields/table", min_value=3, max_value=30, value=6,
@@ -2122,7 +2388,7 @@ elif st.session_state.page == "analytics":
         st.markdown("---")
         do1, do2, do3, do4 = st.columns([2, 1, 1, 1])
         with do1:
-            show_fields = st.checkbox("Show fields", value=True, key="er_show_fields")
+            show_fields = st.checkbox("Show fields", value=False, key="er_show_fields")
         with do2:
             max_f = st.number_input(
                 "Max fields/table", min_value=3, max_value=30, value=8,

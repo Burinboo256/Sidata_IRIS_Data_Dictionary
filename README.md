@@ -10,8 +10,9 @@ Built with **Streamlit** and reads directly from `iris_data_dict.xlsx`.
 
 | Feature | Description |
 |---|---|
-| **Browse** | Filter tables by module, name, and tag; EN description completeness progress bar per table |
-| **Search** | Full-text search across table names, descriptions, field names/types, and **Thai descriptions** |
+| **Browse** | Filter tables by module, name, tag, and certification status; EN description completeness progress bar per table |
+| **Search** | Full-text search across table names, descriptions, field names/types, and Thai descriptions; **Advanced Filters** panel for power users |
+| **Advanced Search** | Filter by certification status, tags, FK presence, completeness, field datatype, missing descriptions, and FK-only fields |
 | **Schema view** | Columns with IRIS types, MS SQL equivalent types, descriptions, FK references, parameters & triggers |
 | **FK Diagram** | Per-table ER diagram tab — shows outgoing and incoming FK links with field names as edge labels |
 | **Lineage** | Column-level lineage tab — exact field-to-field FK paths upstream and downstream |
@@ -19,7 +20,9 @@ Built with **Streamlit** and reads directly from `iris_data_dict.xlsx`.
 | **SQL Builder** | Generate `SELECT` statements; IRIS arrow-syntax (`->`) examples for reference fields |
 | **Thai descriptions** | Inline editor to add Thai field descriptions, saved locally to `translations.json` |
 | **Table Tags** | Label tables with PII, financial, deprecated, master-data, staging, lookup, audit, critical |
-| **Changelog** | Audit log of all tag changes and translation saves, with filtering and table navigation |
+| **Table Metadata** | Set data owner, steward, contact, certification status (Certified/Draft/Deprecated/Experimental), update frequency, and last refresh date per table |
+| **Certification Status** | Four-level trust badge (Certified / Draft / Deprecated / Experimental) — shown as colour-coded badge on table header and filterable in Browse and Search |
+| **Changelog** | Audit log of all tag changes, translation saves, and metadata saves, with filtering and table navigation |
 | **Type mapping** | IRIS types (`%String`, `%Date`, …) automatically mapped to MS SQL Server equivalents |
 | **Recently Viewed** | Last 10 visited tables shown on the Home page for quick re-access |
 | **URL deep linking** | `?table=TABLE_NAME` in the URL opens any table directly — shareable across the network |
@@ -37,11 +40,13 @@ Quick reference for where to find every feature in the app:
 |---|---|
 | 🏠 Home | Sidebar → **Home** (Recently Viewed tables shown here) |
 | 🔍 Search | Sidebar → **Search** (searches table names, EN descriptions, field names/types, and Thai descriptions) |
-| 📁 Browse | Sidebar → **Browse** (filter by module, name, and tag; click any row to open detail) |
+| 🔍 Advanced Search | Sidebar → **Search** → expand **🔍 Advanced Filters** panel |
+| 📁 Browse | Sidebar → **Browse** (filter by module, name, tag, and certification; click any row to open detail) |
 | 🕸️ Graph | Sidebar → **Graph** (interactive network or Mermaid flowchart, 1–2 hops) |
 | 📊 Analytics | Sidebar → **Analytics** (Module Dependency Map, Hub Tables, Orphan Tables, ER Diagram) |
-| 📋 Changelog | Sidebar → **Changelog** (audit log of tag and translation changes) |
+| 📋 Changelog | Sidebar → **Changelog** (audit log of tag, translation, and metadata changes) |
 | 🏷️ Tags | Browse → click a table → detail header → **🏷️ Manage Tags** expander |
+| 📊 Metadata | Browse → click a table → detail header → **📊 Manage Metadata** expander |
 | 📋 Schema | Browse → click a table → **1st tab "📋 Schema"** (IRIS type, MS SQL type, FK references) |
 | ⚙️ SQL Builder | Browse → click a table → **2nd tab "⚙️ SQL Builder"** |
 | 🇹🇭 Thai Desc | Browse → click a table → **3rd tab "🇹🇭 Thai Descriptions"** |
@@ -142,6 +147,53 @@ Each table can be labelled with one or more tags via the **🏷️ Manage Tags**
 
 Tags are saved to `tags.json` and filter in the Browse page. All tag changes are recorded in the Changelog.
 
+### Table Metadata
+
+Each table can have governance metadata set via the **📊 Manage Metadata** expander in the detail header:
+
+| Field | Purpose |
+|---|---|
+| **Owner** | Team or person responsible for the data (e.g. "Finance Team") |
+| **Steward** | Named data steward accountable for quality and definitions |
+| **Contact** | Email or contact handle for questions about this table |
+| **Certification Status** | Trust level — see below |
+| **Update Frequency** | How often the data is refreshed (Real-time / Daily / Weekly / Monthly / Quarterly / Ad-hoc) |
+| **Last Refresh Date** | Date the data was last refreshed (e.g. `2026-04-01`) |
+
+Metadata is saved to `metadata.json`. Owner, steward, contact, frequency, and last refresh are displayed directly in the table header. All saves are recorded in the Changelog.
+
+### Certification Status
+
+A colour-coded trust badge shown on each table:
+
+| Status | Colour | Meaning |
+|---|---|---|
+| `Certified` | Green | Data has been reviewed and validated — safe to use in production |
+| `Draft` | Orange | Definition or quality not yet finalised — use with caution |
+| `Deprecated` | Red | No longer maintained — do not use for new reports |
+| `Experimental` | Purple | Under active development — subject to breaking changes |
+
+The certification badge appears in the table header and is filterable in both the **Browse** page and the **Advanced Search** panel.
+
+---
+
+## Advanced Search
+
+The **🔍 Advanced Filters** panel (expand on the Search page) lets you filter without typing a keyword:
+
+| Filter | Applies to | Description |
+|---|---|---|
+| Certification status | Tables | Show only tables with the selected certification level(s) |
+| Tags | Tables | Show only tables that have all selected tags |
+| Has FK relationships | Tables | Show only tables with at least one resolved FK |
+| No FK (orphan) | Tables | Show only tables with zero FK relationships |
+| Low EN description (<50%) | Tables | Show tables where fewer than half of fields have English descriptions |
+| Field datatype | Fields | Filter by simplified type (string, int, date, ref, …) |
+| Missing EN description | Fields | Show only fields with no English description |
+| FK fields only | Fields | Show only fields that are foreign keys |
+
+Text search and advanced filters can be combined freely.
+
 ---
 
 ## Type mapping (IRIS → MS SQL)
@@ -191,6 +243,8 @@ For hub tables with many connections the diagram is capped at 25 entities; switc
 | **Orphan Tables** | Tables with no FK relationships at all |
 | **ER Diagram** | Multi-table ER diagram — scope by module, 1-hop from a table, or custom selection (up to 20 tables) |
 
+> **Note — Mermaid rendering:** All diagrams (ER Diagram, FK Diagram, Module Dependency Map, Graph) use `mermaid.render()` with `offsetWidth` polling to defer rendering until the tab is visible. This avoids a Streamlit hidden-tab issue where Mermaid fails to compute SVG geometry inside a `display:none` container. Diagrams render automatically as soon as their tab is opened.
+
 ---
 
 ## Changelog
@@ -199,6 +253,7 @@ The **📋 Changelog** page records every change made through the app:
 
 - Thai description saves (table name + count of fields saved)
 - Tag additions and removals
+- Metadata saves (certification, owner, update frequency)
 
 Entries are stored in `changelog.json` (up to 1,000 most recent). The page supports filtering by action type, table name, and free-text search. Clicking a row navigates to the relevant table.
 
@@ -244,6 +299,7 @@ These files are git-ignored and created automatically by the app:
 |---|---|---|
 | `translations.json` | Thai Descriptions tab | Thai field descriptions per table |
 | `tags.json` | Manage Tags expander | Tag lists per table |
+| `metadata.json` | Manage Metadata expander | Owner, steward, contact, certification, refresh info per table |
 | `changelog.json` | Any save action | Audit log entries |
 
 ---
@@ -251,7 +307,7 @@ These files are git-ignored and created automatically by the app:
 ## Project structure
 
 ```
-app.py                        # Streamlit application (~2200 lines)
+app.py                        # Streamlit application (~2400 lines)
 requirements.txt              # Python dependencies
 Create_JSON.ipynb             # Notebook: xlsx → JSON export
 iris_data_dict.xlsx           # Source data (5 sheets)
@@ -260,5 +316,6 @@ iris_data_dict.xlsx           # Source data (5 sheets)
   config.toml                 # Local config (git-ignored)
 translations.json             # Thai descriptions (git-ignored, auto-created)
 tags.json                     # Table tags (git-ignored, auto-created)
+metadata.json                 # Table governance metadata (git-ignored, auto-created)
 changelog.json                # Audit log (git-ignored, auto-created)
 ```
