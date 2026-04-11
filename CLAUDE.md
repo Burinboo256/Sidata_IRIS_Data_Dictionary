@@ -19,9 +19,11 @@ Dependencies: `streamlit pandas pyvis openpyxl plotly`
 
 Server config lives in `.streamlit/config.toml` (git-ignored; copy from `.streamlit/config.toml.example`). Set `address = "0.0.0.0"` — not a specific IP — so both localhost and network access work.
 
+Admin passcode lives in `.streamlit/secrets.toml` (git-ignored; copy from `.streamlit/secrets.toml.example`). Falls back to `"admin1234"` if not set.
+
 ## app.py architecture
 
-The entire app is a single-file Streamlit app (~1700 lines). There is no routing framework — navigation is driven by `st.session_state.page`.
+The entire app is a single-file Streamlit app (~2700 lines). There is no routing framework — navigation is driven by `st.session_state.page`.
 
 ### Data loading
 
@@ -44,9 +46,18 @@ The `fk` dataframe has a `resolve_status` column; always filter `fk[fk["resolve_
 def nav(page: str, table: str = None): ...
 ```
 
-`st.session_state.page` drives which page block renders. Valid values: `"home"`, `"search"`, `"browse"`, `"detail"`, `"graph"`, `"analytics"`. The `browse` and `detail` pages share one `elif` branch.
+`st.session_state.page` drives which page block renders. Valid values: `"home"`, `"search"`, `"browse"`, `"detail"`, `"graph"`, `"analytics"`, `"changelog"`, `"usage"`. The `browse` and `detail` pages share one `elif` branch.
 
 URL deep-linking is handled at the top of every render cycle via `st.query_params["table"]`.
+
+### Admin access control
+
+```python
+LOCKED_PAGES = {"changelog", "usage"}
+ADMIN_PASSCODE  # read from st.secrets["admin_passcode"], fallback "admin1234"
+```
+
+`st.session_state.admin_authenticated` (bool) tracks whether the current session has passed the passcode check. `render_admin_gate(target_page)` renders the passcode form and calls `st.stop()` — insert it at the top of any locked page block before rendering content.
 
 ### Key helper functions
 
@@ -55,21 +66,45 @@ URL deep-linking is handled at the top of every render cycle via `st.query_param
 | `collect_graph_data(center, depth, fk_df, tables_df)` | BFS over resolved FKs → `(nodes_dict, edges_list)`. Cached. Shared by pyvis and Mermaid graph renderers. |
 | `build_pyvis_html(center, nodes_dict, edges)` | Renders pyvis network to HTML string via a temp file. |
 | `build_mermaid_html(center, nodes_dict, edges, direction, group_modules)` | Mermaid flowchart for the Graph page. Returns `(html, code)`. |
-| `build_module_mermaid(dep_counts, direction, collapse_bidir, center_module)` | Mermaid flowchart for Analytics → Module Dependency Map. Returns `(html, code)`. |
+| `_module_mermaid_html(mermaid_code)` | Wraps raw Mermaid code in the full HTML shell for the Module Dependency Map. Returns `html`. |
+| `build_module_mermaid(dep_counts, direction, collapse_bidir, center_module)` | Builds Mermaid code + calls `_module_mermaid_html`. Returns `(html, code)`. |
 | `build_er_mermaid(table_names, include_fields, max_fields, cross_module, direction)` | Mermaid `erDiagram` for the FK Diagram tab and Analytics → ER Diagram. Returns `(html, code)`. |
+| `render_admin_gate(target_page)` | Renders passcode form for locked pages. Sets `admin_authenticated` on success and calls `st.rerun()`. |
 | `simplify_iris_type(type_str)` | Maps IRIS verbose types (`%String(...)`, `%Date`, `CTCompany`) to short ER labels (`string`, `date`, `ref`). |
 | `schema_to_csv(...)` / `schema_to_excel(...)` | Export helpers for the Schema tab download buttons. |
 | `compute_analytics(fk_df, tables_df)` | Returns `(hub_df, orphan_df, dep_counts)`. Cached. |
 
-All Mermaid diagrams are rendered inside `components.html(html, height=..., scrolling=True)` using the mermaid.js v10 CDN. The HTML is built as an f-string with an inline `<pre class="mermaid">` block.
+### Mermaid rendering
+
+All three HTML builders (`build_mermaid_html`, `_module_mermaid_html`, `build_er_mermaid`) use the same pattern:
+
+```javascript
+mermaid.initialize({ startOnLoad: false, ... });
+var _done = false;
+var _svgStr = "";
+async function _render() {
+  if (_done) return;
+  if (document.body.offsetWidth === 0) { setTimeout(_render, 150); return; }
+  _done = true;
+  var r = await mermaid.render("id", _code);
+  _svgStr = r.svg;
+  document.getElementById("diagram").innerHTML = _svgStr;
+  document.getElementById("btn-bar").style.display = "block";
+}
+```
+
+The `offsetWidth === 0` check defers rendering until the iframe is visible (Streamlit renders all tab content upfront with `display:none`). Each builder also injects **⬇ SVG** and **⬇ PNG** download buttons that become visible after render.
 
 ### Detail page tabs
 
-Each table detail page has four tabs:
+Each table detail page has **five** tabs:
 1. **📋 Schema** — fields, FK references, incoming refs, parameters, triggers
-2. **⚙️ SQL Builder** — generate SELECT with IRIS arrow-syntax examples
+2. **⚙️ SQL Builder** — generate SELECT; IRIS arrow-syntax (`->`) examples for FK and `_DR` display fields
 3. **🇹🇭 Thai Descriptions** — `st.data_editor` saving to `translations.json`
-4. **📐 FK Diagram** — `build_er_mermaid` for 1-hop FK connections; capped at 25 entities
+4. **📐 FK Diagram** — `build_er_mermaid` for 1-hop FK connections; adjustable entity limit slider (default 25); Split view shows Outgoing/Incoming side-by-side
+5. **🔗 Lineage** — column-level upstream/downstream FK paths with MS SQL types
+
+Tab selection is persisted across `st.rerun()` calls via a `localStorage` JS snippet injected after `st.tabs(...)`, keyed to the table name.
 
 ### Analytics page tabs
 
@@ -77,6 +112,35 @@ Each table detail page has four tabs:
 2. **🏆 Hub Tables** — ranked by total FK count (incoming + outgoing)
 3. **🏝️ Orphan Tables** — tables with zero FK relationships
 4. **📐 ER Diagram** — `build_er_mermaid`; scope by module / 1-hop / custom selection (max 20 tables)
+
+### Persistence helpers
+
+| Function | File | Purpose |
+|---|---|---|
+| `load_translations()` / `save_translations(data)` | `translations.json` | Thai field descriptions `{class_name: {field: text}}` |
+| `load_tags()` / `save_tags(data)` | `tags.json` | Tag lists per table `{table: [tag, ...]}` |
+| `load_metadata()` / `save_metadata(data)` | `metadata.json` | Governance metadata per table (owner, steward, cert, etc.) |
+| `load_changelog()` / `append_changelog(action, table, details)` | `changelog.json` | Audit log; capped at 1,000 entries |
+| `load_usage_log()` / `log_event(event, details)` | `usage_log.json` | Usage events; capped at 10,000 entries |
+
+### Tags and metadata
+
+- **Tags** (`PREDEFINED_TAGS`): PII, financial, deprecated, master-data, staging, lookup, audit, critical — stored in `tags.json`, filterable in Browse.
+- **Certification** (`CERT_OPTIONS`): Certified, Draft, Deprecated, Experimental — colour-coded badge on table header, filterable in Browse and Advanced Search.
+- **Metadata fields**: owner, steward, contact, update_frequency, last_refresh — displayed inline in table header.
+- All tag and metadata changes are recorded in `changelog.json` via `append_changelog()`.
+
+### Arrow syntax (SQL Builder)
+
+IRIS creates two SQL columns per object-reference property: `PropName` (ID) and `PropName_DR` (display value). `fk_map` only contains the base field. The SQL Builder detects `_DR` fields with:
+
+```python
+elif f.endswith("_DR") and f[:-3] in fk_map:
+    base = f[:-3]
+    ref_in_chosen.append((f, fk_map[base], base))
+```
+
+Use the base field name (not `_DR`) for the arrow traversal syntax.
 
 ### Translations
 
