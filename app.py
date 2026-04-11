@@ -1062,6 +1062,429 @@ document.getElementById("btn-png").onclick = function() {{
     return html, mermaid_code
 
 
+def build_cytoscape_html(
+    table_names: list,
+    include_fields: bool = True,
+    max_fields: int = 8,
+    cross_module: bool = False,
+    center_table: str = None,
+    height: int = 620,
+) -> str:
+    """Build an interactive Cytoscape.js ER diagram.
+
+    When include_fields=True each node renders as a mini-table card (header +
+    field rows) using an SVG data-URI background — visually similar to Mermaid
+    erDiagram but fully interactive (drag, zoom/pan, click for full field list).
+
+    Returns a self-contained html_string suitable for components.html().
+    """
+    import urllib.parse
+
+    t = _theme()
+    resolved_er = fk[fk["resolve_status"] == "resolved"]
+    primary = set(table_names)
+
+    if cross_module:
+        ext = resolved_er[
+            resolved_er["source_sql_table_name"].isin(primary)
+            & ~resolved_er["target_sql_table_name"].isin(primary)
+            & (resolved_er["source_sql_field_name"] != "")
+        ]["target_sql_table_name"].unique()
+        all_tables = primary | set(ext)
+    else:
+        all_tables = primary
+
+    er_edges_df = resolved_er[
+        resolved_er["source_sql_table_name"].isin(all_tables)
+        & resolved_er["target_sql_table_name"].isin(all_tables)
+        & (resolved_er["source_sql_field_name"] != "")
+    ]
+
+    tbl_class  = tables.set_index("sql_table_name")["class_name"].to_dict()
+    tbl_module = tables.set_index("sql_table_name")["module_name"].to_dict()
+
+    # ── Module → colour (fixed palette, cycles if >16 modules) ──
+    _PALETTE = [
+        "#4c9be8", "#e87c4c", "#5cba7a", "#c75cd4", "#e8c84c",
+        "#4cbbe8", "#e84c6e", "#84c44c", "#9e6de8", "#e8a34c",
+        "#4ce8c0", "#e84ca8", "#5490d4", "#d4a054", "#54d490",
+        "#d454a0",
+    ]
+    all_mods = sorted({tbl_module.get(tb, "Unknown") for tb in all_tables})
+    mod_color = {m: _PALETTE[i % len(_PALETTE)] for i, m in enumerate(all_mods)}
+
+    # ── SVG node card builder ──────────────────────────────────────────────────
+    def _xe(s: str) -> str:
+        """Escape text for embedding inside SVG XML."""
+        return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+
+    def _node_svg(label: str, hdr_color: str, disp_fields: list, remainder: int,
+                  bg_col: str, text_col: str, bdr_col: str, is_center: bool) -> tuple:
+        """Return (svg_data_uri, width_px, height_px) for a table-card node."""
+        NODE_W   = 215
+        HDR_H    = 26
+        ROW_H    = 17
+        PAD_FOOT = 4
+        num_rows = len(disp_fields) + (1 if remainder > 0 else 0)
+        body_h   = max(num_rows * ROW_H, ROW_H) + PAD_FOOT
+        total_h  = HDR_H + body_h
+
+        bdr_w   = "2.5" if is_center else "1"
+        bdr_clr = "#e8a838" if is_center else bdr_col
+
+        rows_svg = ""
+        for i, f in enumerate(disp_fields):
+            row_y    = HDR_H + i * ROW_H
+            text_y   = row_y + 12
+            alt_fill = "rgba(255,255,255,0.04)" if i % 2 == 0 else "rgba(0,0,0,0.06)"
+            fk_el    = (
+                f'<text x="188" y="{text_y}" font-family="monospace" font-size="8" fill="#e8a838">FK</text>'
+                if f["is_fk"] else ""
+            )
+            rows_svg += (
+                f'<rect x="1" y="{row_y}" width="{NODE_W - 2}" height="{ROW_H}" fill="{alt_fill}"/>'
+                f'<text x="8" y="{text_y}" font-family="monospace" font-size="9" fill="#888">'
+                f'{_xe(f["type"][:10])}</text>'
+                f'<text x="68" y="{text_y}" font-family="monospace" font-size="9" fill="{text_col}">'
+                f'{_xe(f["name"][:24])}</text>'
+                + fk_el
+            )
+        if remainder > 0:
+            more_y = HDR_H + len(disp_fields) * ROW_H
+            rows_svg += (
+                f'<rect x="1" y="{more_y}" width="{NODE_W - 2}" height="{ROW_H}" fill="rgba(255,255,255,0.02)"/>'
+                f'<text x="{NODE_W // 2}" y="{more_y + 12}" text-anchor="middle" '
+                f'font-family="Segoe UI,sans-serif" font-size="9" fill="#888" font-style="italic">'
+                f'… {remainder} more fields</text>'
+            )
+
+        svg = (
+            f'<svg xmlns="http://www.w3.org/2000/svg" width="{NODE_W}" height="{total_h}">'
+            # outer border
+            f'<rect x="0" y="0" width="{NODE_W}" height="{total_h}" rx="5" ry="5" '
+            f'fill="{bg_col}" stroke="{bdr_clr}" stroke-width="{bdr_w}"/>'
+            # header background (flat bottom to connect with body)
+            f'<rect x="0" y="0" width="{NODE_W}" height="{HDR_H}" rx="5" ry="5" fill="{hdr_color}"/>'
+            f'<rect x="0" y="{HDR_H - 5}" width="{NODE_W}" height="5" fill="{hdr_color}"/>'
+            # header label
+            f'<text x="{NODE_W // 2}" y="17" text-anchor="middle" '
+            f'font-family="Segoe UI,sans-serif" font-size="11" font-weight="bold" fill="white">'
+            f'{_xe(label[:30])}</text>'
+            # field rows
+            + rows_svg +
+            f'</svg>'
+        )
+        uri = "data:image/svg+xml," + urllib.parse.quote(svg)
+        return uri, NODE_W, total_h
+
+    # ── Build Cytoscape node list ──────────────────────────────────────────────
+    cy_nodes = []
+    for tbl in sorted(all_tables):
+        cn  = tbl_class.get(tbl, "")
+        mod = tbl_module.get(tbl, "Unknown")
+        color = mod_color.get(mod, "#888")
+        is_center = tbl == center_table
+
+        all_fields_list: list = []   # full list → side panel
+        disp_fields:     list = []   # truncated → SVG card
+        remainder = 0
+
+        if cn:
+            tbl_f = fields[fields["class_name"] == cn].sort_values("member_order")
+            fk_field_names = set(
+                er_edges_df[er_edges_df["source_sql_table_name"] == tbl]["source_sql_field_name"]
+            )
+            for _, fr in tbl_f.iterrows():
+                sf = str(fr["sql_field_name"])
+                if not sf or sf == "nan":
+                    continue
+                ftype = simplify_iris_type(str(fr["member_type"]))
+                desc  = str(fr.get("description", ""))
+                desc  = "" if desc == "nan" else desc
+                all_fields_list.append({
+                    "name":  sf,
+                    "type":  ftype,
+                    "is_fk": sf in fk_field_names,
+                    "desc":  desc[:60],
+                })
+            disp_fields = all_fields_list[:max_fields]
+            remainder   = max(0, len(all_fields_list) - max_fields)
+
+        node_entry: dict = {
+            "data": {
+                "id":         tbl,
+                "label":      tbl,
+                "module":     mod,
+                "color":      color,
+                "fields":     all_fields_list,   # full list for side panel
+                "class_name": cn,
+                "is_center":  is_center,
+                "has_svg":    include_fields and bool(all_fields_list),
+            }
+        }
+
+        if include_fields and all_fields_list:
+            svg_uri, node_w, node_h = _node_svg(
+                tbl, color, disp_fields, remainder,
+                t["bg"], t["text"], t["border"], is_center,
+            )
+            # Inline style sets exact dimensions + SVG background
+            node_entry["style"] = {
+                "background-image":   svg_uri,
+                "background-fit":     "cover",
+                "background-opacity": 0,        # hide solid fill; SVG draws its own bg
+                "border-width":       0,        # SVG draws its own border
+                "width":              node_w,
+                "height":             node_h,
+                "shape":              "rectangle",
+                "label":              "",        # label is inside SVG
+            }
+
+        cy_nodes.append(node_entry)
+
+    # ── Build Cytoscape edge list ──────────────────────────────────────────────
+    cy_edges = []
+    seen_edges: set = set()
+    for _, r in er_edges_df.iterrows():
+        src   = str(r["source_sql_table_name"])
+        tgt   = str(r["target_sql_table_name"])
+        field = str(r["source_sql_field_name"])
+        card  = str(r.get("relationship_cardinality", ""))
+        key   = (src, tgt, field[:20])
+        if key in seen_edges:
+            continue
+        seen_edges.add(key)
+        cy_edges.append({
+            "data": {
+                "id":          f"{src}__{tgt}__{field[:20]}",
+                "source":      src,
+                "target":      tgt,
+                "label":       (field[:28] if field and field != "nan" else "ref"),
+                "cardinality": card,
+            }
+        })
+
+    elements_json  = json.dumps(cy_nodes + cy_edges)
+    mod_color_json = json.dumps(mod_color)
+    legend_show    = str(len(all_mods) <= 14).lower()
+    # Larger spacing when nodes are wide SVG cards
+    edge_len       = 280 if include_fields else 130
+    node_rep       = 900000 if include_fields else 500000
+
+    bg       = t["bg"]
+    text     = t["text"]
+    border   = t["border"]
+    card_bg  = t["card_bg"]
+    node_cnt = len(cy_nodes)
+    edge_cnt = len(cy_edges)
+
+    html = f"""<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<style>
+  *{{box-sizing:border-box;margin:0;padding:0}}
+  body{{background:{bg};color:{text};font-family:'Segoe UI',sans-serif;
+        height:{height}px;overflow:hidden}}
+  #layout{{display:flex;flex-direction:column;height:{height}px}}
+  #toolbar{{padding:5px 10px;display:flex;align-items:center;gap:6px;
+             background:{card_bg};border-bottom:1px solid {border};flex-shrink:0;flex-wrap:wrap}}
+  .btn{{padding:3px 9px;border:1px solid {border};border-radius:4px;
+         cursor:pointer;font-size:12px;background:{card_bg};color:{text}}}
+  .btn:hover{{opacity:0.75}}
+  select{{padding:2px 5px;border:1px solid {border};border-radius:4px;
+           background:{card_bg};color:{text};font-size:12px}}
+  #main{{display:flex;flex:1;overflow:hidden}}
+  #cy{{flex:1;}}
+  #panel{{width:240px;background:{card_bg};border-left:1px solid {border};
+          padding:10px;overflow-y:auto;font-size:12px;flex-shrink:0}}
+  #panel h3{{font-size:13px;margin-bottom:5px;word-break:break-all}}
+  .mbadge{{font-size:10px;padding:2px 7px;border-radius:10px;
+           display:inline-block;margin-bottom:6px;color:#fff}}
+  .cn{{font-size:10px;color:#888;margin-bottom:8px}}
+  .fr{{padding:3px 0;border-bottom:1px solid {border};
+       display:flex;justify-content:space-between;align-items:baseline}}
+  .fn{{font-weight:500;font-size:11px}}
+  .ft{{color:#888;font-size:10px}}
+  .fk{{font-size:9px;color:#e8a838;margin-left:3px}}
+  .fd{{font-size:10px;color:#888;margin-bottom:2px;padding-left:2px}}
+  #legend{{margin-top:10px;font-size:11px}}
+  .ld{{display:flex;align-items:center;gap:5px;margin:2px 0}}
+  .lc{{width:10px;height:10px;border-radius:50%;flex-shrink:0}}
+  #hint{{color:#888;font-size:12px;margin-top:24px;text-align:center;line-height:1.6}}
+  #pcount{{font-size:10px;color:#888;margin-bottom:6px}}
+</style></head>
+<body>
+<div id="layout">
+  <div id="toolbar">
+    <button class="btn" id="bfit">⛶ Fit</button>
+    <button class="btn" id="bzin">＋</button>
+    <button class="btn" id="bzout">－</button>
+    <span style="font-size:12px">Layout:</span>
+    <select id="lsel">
+      <option value="cose">Force (CoSE)</option>
+      <option value="breadthfirst">Breadth-first</option>
+      <option value="grid">Grid</option>
+      <option value="circle">Circle</option>
+      <option value="concentric">Concentric</option>
+    </select>
+    <button class="btn" id="blay">Apply</button>
+    <span style="flex:1"></span>
+    <button class="btn" id="bpng">⬇ PNG</button>
+    <span style="font-size:11px;color:#888">{node_cnt} tables · {edge_cnt} edges</span>
+  </div>
+  <div id="main">
+    <div id="cy"></div>
+    <div id="panel">
+      <div id="hint">Click a node<br>to see full field list</div>
+      <div id="pcontent" style="display:none">
+        <h3 id="ptitle"></h3>
+        <div class="mbadge" id="pmod"></div>
+        <div class="cn" id="pcn"></div>
+        <div id="pcount"></div>
+        <div id="pfields"></div>
+      </div>
+      <div id="legend"></div>
+    </div>
+  </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
+<script>
+var MC = {mod_color_json};
+var showLegend = {legend_show};
+
+var cy = cytoscape({{
+  container: document.getElementById('cy'),
+  elements: {elements_json},
+  style: [
+    // ── plain nodes (no SVG card) ──
+    {{selector:'node', style:{{
+      'label':'data(label)',
+      'text-valign':'center','text-halign':'center',
+      'background-color':'data(color)',
+      'border-color':'{border}','border-width':1.5,
+      'color':'{text}','font-size':'10px',
+      'width':'label','height':'label','padding':'12px',
+      'shape':'roundrectangle',
+      'text-wrap':'wrap','text-max-width':'140px',
+    }}}},
+    // ── SVG-card nodes: hide Cytoscape label (label is inside the SVG) ──
+    {{selector:'node[?has_svg]', style:{{
+      'label':'','text-opacity':0,
+    }}}},
+    // ── center node (plain mode only) ──
+    {{selector:'node[?is_center][^has_svg]', style:{{
+      'border-width':3,'border-color':'#e8a838','font-weight':'bold'
+    }}}},
+    {{selector:'node:selected', style:{{
+      'overlay-color':'#4a9eff','overlay-padding':4,'overlay-opacity':0.25,
+    }}}},
+    // ── edges ──
+    {{selector:'edge', style:{{
+      'label':'data(label)','width':1.5,
+      'line-color':'#888','target-arrow-color':'#888',
+      'target-arrow-shape':'triangle','curve-style':'bezier',
+      'font-size':'9px','color':'#aaa',
+      'text-rotation':'autorotate',
+      'text-background-opacity':1,
+      'text-background-color':'{bg}',
+      'text-background-padding':'2px',
+      'text-margin-y':-8,
+    }}}},
+    {{selector:'edge[cardinality="children"]', style:{{
+      'line-style':'dashed','target-arrow-shape':'vee',
+      'line-color':'#e8a838','target-arrow-color':'#e8a838',
+    }}}},
+    {{selector:'.hi', style:{{'line-color':'#4a9eff','target-arrow-color':'#4a9eff','width':2.5}}}},
+    {{selector:'.dim', style:{{'opacity':0.15}}}},
+  ],
+  layout:{{
+    name:'cose',
+    idealEdgeLength:{edge_len},nodeOverlap:30,refresh:20,
+    fit:true,padding:40,randomize:false,
+    componentSpacing:120,nodeRepulsion:{node_rep},
+    edgeElasticity:100,nestingFactor:5,
+    gravity:60,numIter:1000,
+    initialTemp:200,coolingFactor:0.95,minTemp:1.0,
+    animate:false,
+  }}
+}});
+
+// Legend
+if (showLegend) {{
+  var lh = '<div style="font-weight:600;margin-bottom:4px">Modules</div>';
+  Object.keys(MC).forEach(function(m){{
+    lh += '<div class="ld"><div class="lc" style="background:'+MC[m]+'"></div><span>'+m+'</span></div>';
+  }});
+  document.getElementById('legend').innerHTML = lh;
+}}
+
+// Node tap → full field list in side panel + highlight neighbourhood
+cy.on('tap','node',function(evt){{
+  var n = evt.target, d = n.data();
+  cy.elements().removeClass('hi dim');
+  var nb = n.closedNeighborhood();
+  cy.elements().not(nb).addClass('dim');
+  nb.edges().addClass('hi');
+
+  document.getElementById('hint').style.display='none';
+  document.getElementById('pcontent').style.display='block';
+  document.getElementById('ptitle').textContent = d.label;
+  var pm = document.getElementById('pmod');
+  pm.textContent = d.module; pm.style.background = d.color;
+  document.getElementById('pcn').textContent = d.class_name || '';
+
+  var flist = d.fields || [];
+  document.getElementById('pcount').textContent = flist.length ? flist.length + ' fields total' : '';
+
+  var pf = document.getElementById('pfields');
+  if (!flist.length) {{
+    pf.innerHTML='<div style="color:#888;font-size:11px">No fields loaded.</div>';
+  }} else {{
+    var rows='';
+    flist.forEach(function(f){{
+      var fkMark = f.is_fk ? '<span class="fk">FK</span>' : '';
+      var fdesc  = f.desc  ? '<div class="fd">'+f.desc+'</div>' : '';
+      rows += '<div class="fr"><span class="fn">'+f.name+fkMark+'</span>'
+            + '<span class="ft">'+f.type+'</span></div>'+fdesc;
+    }});
+    pf.innerHTML = rows;
+  }}
+}});
+
+// Tap background → reset highlight
+cy.on('tap',function(evt){{
+  if(evt.target===cy){{
+    cy.elements().removeClass('hi dim');
+    document.getElementById('hint').style.display='block';
+    document.getElementById('pcontent').style.display='none';
+  }}
+}});
+
+// Toolbar
+document.getElementById('bfit').onclick  = function(){{ cy.fit(40); }};
+document.getElementById('bzin').onclick  = function(){{ cy.zoom(cy.zoom()*1.3); cy.center(); }};
+document.getElementById('bzout').onclick = function(){{ cy.zoom(cy.zoom()/1.3); cy.center(); }};
+document.getElementById('blay').onclick  = function(){{
+  var name = document.getElementById('lsel').value;
+  var o = {{name:name,fit:true,padding:40,animate:true,animationDuration:500}};
+  if(name==='cose') Object.assign(o,{{
+    idealEdgeLength:{edge_len},nodeRepulsion:{node_rep},animate:false
+  }});
+  cy.layout(o).run();
+}};
+document.getElementById('bpng').onclick = function(){{
+  var blob = cy.png({{output:'blob',bg:'{bg}',scale:2}});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a'); a.href=url; a.download='er_diagram.png';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){{URL.revokeObjectURL(url);}},1000);
+}};
+</script>
+</body></html>"""
+
+    return html
+
+
 # ─── Load all data ────────────────────────────────────────────────────────────
 
 tables, fields, fk, classes, members = load_data()
@@ -2028,8 +2451,17 @@ elif st.session_state.page in ("browse", "detail"):
                     & (fk_res_all["source_sql_field_name"] != "")
                 ]["source_sql_table_name"].unique().tolist())
 
-                fk_ec1, fk_ec2, fk_ec3 = st.columns([2, 2, 3])
+                fk_ec0, fk_ec1, fk_ec2, fk_ec3 = st.columns([2, 2, 2, 3])
+                with fk_ec0:
+                    fk_renderer = st.radio(
+                        "Renderer",
+                        ["Mermaid (static)", "Interactive (Cytoscape)"],
+                        horizontal=False,
+                        key=f"fk_renderer_{tbl_name}",
+                        help="**Interactive** — drag nodes, click for field details, zoom/pan.",
+                    )
                 with fk_ec1:
+                    _split_disabled = (fk_renderer == "Interactive (Cytoscape)")
                     fk_include = st.radio(
                         "Show",
                         [
@@ -2040,6 +2472,8 @@ elif st.session_state.page in ("browse", "detail"):
                         ],
                         horizontal=False,
                         key=f"fk_er_dir_{tbl_name}",
+                        disabled=_split_disabled,
+                        help="Split view is only available in Mermaid mode.",
                     )
                 with fk_ec2:
                     fk_show_fields = st.checkbox(
@@ -2055,7 +2489,8 @@ elif st.session_state.page in ("browse", "detail"):
                         "Layout", ["LR", "TB"],
                         horizontal=True,
                         key=f"fk_er_layout_{tbl_name}",
-                        help="LR = left-to-right, TB = top-to-bottom",
+                        help="LR = left-to-right, TB = top-to-bottom (Mermaid only)",
+                        disabled=(fk_renderer == "Interactive (Cytoscape)"),
                     )
                     fk_max_entities = st.slider(
                         "Max entities per diagram", min_value=5, max_value=100,
@@ -2069,8 +2504,40 @@ elif st.session_state.page in ("browse", "detail"):
                     f"incoming FK from **{len(in_tbls)}** table(s)"
                 )
 
-                # ── Split view: two diagrams side by side ──
-                if fk_include == "Split view (Outgoing | Incoming)":
+                # ── Interactive (Cytoscape) view ──
+                if fk_renderer == "Interactive (Cytoscape)":
+                    candidate_tables = list({tbl_name} | set(out_tbls) | set(in_tbls))
+                    _truncated = False
+                    if len(candidate_tables) > fk_max_entities:
+                        _truncated = True
+                        _pool = [t for t in out_tbls if t != tbl_name] + [t for t in in_tbls if t != tbl_name]
+                        _seen2: set = set()
+                        _ordered2 = []
+                        for _t in _pool:
+                            if _t not in _seen2:
+                                _seen2.add(_t)
+                                _ordered2.append(_t)
+                        candidate_tables = [tbl_name] + _ordered2[:fk_max_entities - 1]
+                    if _truncated:
+                        st.warning(
+                            f"Showing **{fk_max_entities}** of **{len(out_tbls) + len(in_tbls) + 1}** entities — "
+                            "raise the slider to see more."
+                        )
+                    if len(candidate_tables) == 1:
+                        st.info("No FK relationships found for this table.")
+                    else:
+                        cy_fk_html = build_cytoscape_html(
+                            candidate_tables,
+                            include_fields=fk_show_fields,
+                            max_fields=int(fk_max_fields),
+                            cross_module=False,
+                            center_table=tbl_name,
+                            height=640,
+                        )
+                        components.html(cy_fk_html, height=650, scrolling=False)
+
+                # ── Split view: two Mermaid diagrams side by side ──
+                elif fk_include == "Split view (Outgoing | Incoming)":
                     if not out_tbls and not in_tbls:
                         st.info("No FK relationships found for this table.")
                     else:
@@ -2122,7 +2589,7 @@ elif st.session_state.page in ("browse", "detail"):
                                 with st.expander("Raw Mermaid (Incoming)"):
                                     st.code(_code, language="text")
 
-                # ── Single diagram view ──
+                # ── Single Mermaid diagram view ──
                 else:
                     if fk_include == "Outgoing only":
                         candidate_tables = list({tbl_name} | set(out_tbls))
@@ -2710,18 +3177,31 @@ elif st.session_state.page == "analytics":
 
         # ── Display options
         st.markdown("---")
-        do1, do2, do3, do4 = st.columns([2, 1, 1, 1])
+        do0, do1, do2, do3, do4 = st.columns([2, 2, 1, 1, 1])
+        with do0:
+            er_renderer = st.radio(
+                "Renderer",
+                ["Mermaid (static)", "Interactive (Cytoscape)"],
+                horizontal=False,
+                key="er_renderer",
+                help="**Mermaid** — clean static diagram, SVG/PNG export.\n\n"
+                     "**Interactive** — drag nodes, click for field details, zoom/pan.",
+            )
         with do1:
             show_fields = st.checkbox("Show fields", value=False, key="er_show_fields")
-        with do2:
             max_f = st.number_input(
                 "Max fields/table", min_value=3, max_value=30, value=8,
                 step=1, key="er_max_fields",
                 disabled=not show_fields,
             )
+        with do2:
+            er_dir = st.radio(
+                "Layout", ["TB", "LR"], horizontal=True, key="er_dir",
+                help="TB = top-to-bottom, LR = left-to-right (Mermaid only)",
+                disabled=(er_renderer == "Interactive (Cytoscape)"),
+            )
         with do3:
-            er_dir = st.radio("Layout", ["TB", "LR"], horizontal=True, key="er_dir",
-                              help="TB = top-to-bottom, LR = left-to-right")
+            pass  # spacer
         with do4:
             st.markdown("<br>", unsafe_allow_html=True)
             draw_er = st.button("Draw", type="primary", use_container_width=True, key="draw_er")
@@ -2729,17 +3209,29 @@ elif st.session_state.page == "analytics":
         # ── Render
         if er_tables:
             st.caption(f"Entities: **{len(er_tables)}** tables")
-            er_html, er_code = build_er_mermaid(
-                er_tables,
-                include_fields=show_fields,
-                max_fields=int(max_f),
-                cross_module=cross_mod,
-                direction=er_dir,
-            )
-            components.html(er_html, height=700, scrolling=True)
 
-            with st.expander("Raw Mermaid code  ·  paste into mermaid.live or Notion"):
-                st.code(er_code, language="text")
+            if er_renderer == "Interactive (Cytoscape)":
+                cy_html = build_cytoscape_html(
+                    er_tables,
+                    include_fields=show_fields,
+                    max_fields=int(max_f),
+                    cross_module=cross_mod,
+                    center_table=center_er_table,
+                    height=680,
+                )
+                components.html(cy_html, height=690, scrolling=False)
+            else:
+                er_html, er_code = build_er_mermaid(
+                    er_tables,
+                    include_fields=show_fields,
+                    max_fields=int(max_f),
+                    cross_module=cross_mod,
+                    direction=er_dir,
+                )
+                components.html(er_html, height=700, scrolling=True)
+
+                with st.expander("Raw Mermaid code  ·  paste into mermaid.live or Notion"):
+                    st.code(er_code, language="text")
         else:
             st.info("Select a module, table, or custom set above to generate the diagram.")
 

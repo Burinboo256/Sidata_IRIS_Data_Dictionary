@@ -14,7 +14,7 @@ Built with **Streamlit** and reads directly from `iris_data_dict.xlsx`.
 | **Search** | Full-text search across table names, descriptions, field names/types, and Thai descriptions; **Advanced Filters** panel for power users |
 | **Advanced Search** | Filter by certification status, tags, FK presence, completeness, field datatype, missing descriptions, and FK-only fields |
 | **Schema view** | Columns with IRIS types, MS SQL equivalent types, descriptions, FK references, parameters & triggers |
-| **FK Diagram** | Per-table ER diagram tab — shows outgoing and incoming FK links with field names as edge labels |
+| **FK Diagram** | Per-table ER diagram tab — shows outgoing and incoming FK links; choose **Mermaid (static)** or **Interactive (Cytoscape)** renderer |
 | **Lineage** | Column-level lineage tab — exact field-to-field FK paths upstream and downstream |
 | **Relationship graph** | Interactive network (pyvis) or Mermaid flowchart with module subgraphs; 1–2 hop depth |
 | **SQL Builder** | Generate `SELECT` statements; IRIS arrow-syntax (`->`) examples for reference fields |
@@ -27,7 +27,7 @@ Built with **Streamlit** and reads directly from `iris_data_dict.xlsx`.
 | **Recently Viewed** | Last 10 visited tables shown on the Home page for quick re-access |
 | **URL deep linking** | `?table=TABLE_NAME` in the URL opens any table directly — shareable across the network |
 | **Export schema** | Download any table schema as CSV or multi-sheet Excel (columns with MSSQL types, FK, incoming refs, parameters, triggers) |
-| **Analytics** | Module Dependency Map, Hub Tables, Orphan Tables, ER Diagram (multi-table scope) |
+| **Analytics** | Module Dependency Map, Hub Tables, Orphan Tables, ER Diagram (multi-table scope; Mermaid or Interactive Cytoscape renderer) |
 | **Usage Stats** | Track sessions, page views, table views, and searches; charts for sessions/day, feature usage, top tables, and top searches |
 | **Dark / Light mode** | Toggle between dark and light themes from the sidebar |
 | **Diagram export** | Download any Mermaid diagram (FK Diagram, ER Diagram, Graph, Module Dependency) as **SVG** or **PNG** |
@@ -131,7 +131,7 @@ Each table detail page has five tabs:
 | **📋 Schema** | Columns with IRIS type, MS SQL type, description, and FK reference (TargetTable.PK). Outgoing and incoming FK expandable sections. |
 | **⚙️ SQL Builder** | Build `SELECT` statements; IRIS arrow-syntax examples for reference fields; ObjectScript access pattern |
 | **🇹🇭 Thai Descriptions** | Inline editor for Thai field descriptions with per-table progress bar |
-| **📐 FK Diagram** | ER diagram of FK connections; adjustable entity limit (default 25); Outgoing / Incoming / Both / Split view; SVG + PNG export |
+| **📐 FK Diagram** | ER diagram of FK connections; **Mermaid (static)** or **Interactive (Cytoscape)** renderer; adjustable entity limit (default 25); Outgoing / Incoming / Both / Split view; SVG + PNG export |
 | **🔗 Lineage** | Column-level lineage: upstream (this table's FK fields → target table + PK) and downstream (which fields in other tables reference this table), both with MS SQL types |
 
 ### Table Tags
@@ -236,17 +236,35 @@ Controls:
 
 | Control | Options | Notes |
 |---|---|---|
-| **Show** | Outgoing + Incoming · Outgoing only · Incoming only · **Split view** | Split view renders both sides as two diagrams side-by-side |
+| **Renderer** | Mermaid (static) · Interactive (Cytoscape) | See below |
+| **Show** | Outgoing + Incoming · Outgoing only · Incoming only · **Split view** | Split view available in Mermaid mode only |
 | **Show fields** | on / off | Toggle field list inside each entity box |
 | **Max fields/table** | 3–30 (default 6) | Caps fields shown per entity when "Show fields" is on |
-| **Layout** | LR · TB | Left-to-right or top-to-bottom |
+| **Layout** | LR · TB | Left-to-right or top-to-bottom (Mermaid only) |
 | **Max entities per diagram** | 5–100 (default 25) | Raise to see more tables; lower for a cleaner view |
 
-**Split view** renders outgoing FK and incoming FK as two independent diagrams side-by-side — each respects the entity limit slider independently.
+### Mermaid (static) renderer
 
-When the diagram exceeds the entity limit a warning guides you to raise the slider or switch to Split view.
+Renders a clean, static SVG ER diagram. Supports **Split view** (Outgoing / Incoming side-by-side) and exports as **⬇ SVG** or **⬇ PNG**.
 
-**Export:** After the diagram renders, **⬇ SVG** and **⬇ PNG** buttons appear above the diagram. SVG is vector and always works; PNG uses canvas rendering (2× resolution).
+### Interactive (Cytoscape) renderer
+
+Renders a fully interactive ER diagram via **Cytoscape.js** (loaded from CDN — no extra install needed):
+
+| Feature | Detail |
+|---|---|
+| **Drag nodes** | Rearrange the layout freely |
+| **Zoom / Pan** | Mouse wheel zoom, click-drag to pan |
+| **Click node** | Side panel shows full field list (name, type, FK marker, description) |
+| **Field cards** | When "Show fields" is on, each node renders as a mini table card — header coloured by module, rows showing type + field name + FK badge |
+| **Highlight neighbourhood** | Clicking a node dims unrelated nodes and highlights its edges |
+| **Layout switcher** | Force (CoSE), Breadth-first, Grid, Circle, Concentric |
+| **Module legend** | Colour key for up to 14 modules shown in the side panel |
+| **Download PNG** | 2× resolution PNG of the current diagram |
+
+> **Split view** is only available in Mermaid mode. Use the entity limit slider to control how many tables appear in Interactive mode.
+
+When the diagram exceeds the entity limit a warning guides you to raise the slider.
 
 ---
 
@@ -257,11 +275,13 @@ When the diagram exceeds the entity limit a warning guides you to raise the slid
 | **Module Dependency Map** | Mermaid flowchart of module-to-module FK references; Focus mode, Top-N slider, collapse bidirectional |
 | **Hub Tables** | Tables ranked by incoming + outgoing FK count |
 | **Orphan Tables** | Tables with no FK relationships at all |
-| **ER Diagram** | Multi-table ER diagram — scope by module, 1-hop from a table, or custom selection (up to 20 tables) |
+| **ER Diagram** | Multi-table ER diagram — scope by module, 1-hop from a table, or custom selection (up to 20 tables); choose **Mermaid (static)** or **Interactive (Cytoscape)** renderer |
 
-> **Note — Mermaid rendering:** All diagrams (ER Diagram, FK Diagram, Module Dependency Map, Graph) use `mermaid.render()` with `offsetWidth` polling to defer rendering until the tab is visible. This avoids a Streamlit hidden-tab issue where Mermaid fails to compute SVG geometry inside a `display:none` container. Diagrams render automatically as soon as their tab is opened.
+The **ER Diagram** tab has the same Renderer toggle as the FK Diagram tab — see [Interactive (Cytoscape) renderer](#interactive-cytoscape-renderer) above for full feature list.
 
-> **Diagram export:** All Mermaid diagrams (FK Diagram, ER Diagram, Graph, Module Dependency Map) show **⬇ SVG** and **⬇ PNG** download buttons once rendered. SVG is lossless vector; PNG is 2× resolution raster. For flowcharts with HTML labels, PNG may require a browser that permits canvas cross-origin SVG — SVG always works as a fallback.
+> **Note — Mermaid rendering:** All Mermaid diagrams (ER Diagram, FK Diagram, Module Dependency Map, Graph) use `mermaid.render()` with `offsetWidth` polling to defer rendering until the tab is visible. This avoids a Streamlit hidden-tab issue where Mermaid fails to compute SVG geometry inside a `display:none` container. Diagrams render automatically as soon as their tab is opened.
+
+> **Diagram export:** All Mermaid diagrams show **⬇ SVG** and **⬇ PNG** download buttons once rendered. SVG is lossless vector; PNG is 2× resolution raster. The Interactive Cytoscape renderer exports **⬇ PNG** (2× resolution) from the toolbar inside the diagram.
 
 ---
 
@@ -381,7 +401,7 @@ These files are git-ignored and created automatically by the app:
 ## Project structure
 
 ```
-app.py                        # Streamlit application (~2700 lines)
+app.py                        # Streamlit application (~2900 lines)
 requirements.txt              # Python dependencies
 Create_JSON.ipynb             # Notebook: xlsx → JSON export
 iris_data_dict.xlsx           # Source data (5 sheets)
