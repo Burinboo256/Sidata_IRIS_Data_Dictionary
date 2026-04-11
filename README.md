@@ -18,7 +18,7 @@ Built with **Streamlit** and reads directly from `iris_data_dict.xlsx`.
 | **Lineage** | Column-level lineage tab — exact field-to-field FK paths upstream and downstream |
 | **SQL Builder** | Generate `SELECT` statements; IRIS arrow-syntax (`->`) examples for reference fields |
 | **Thai descriptions** | Inline editor to add Thai field descriptions, saved locally to `translations.json` |
-| **Table Tags** | Label tables with PII, financial, deprecated, master-data, staging, lookup, audit, critical |
+| **Table Tags** | Label tables with built-in tags (PII, financial, deprecated, …) or type any custom tag |
 | **Table Metadata** | Set data owner, steward, contact, certification status (Certified/Draft/Deprecated/Experimental), update frequency, and last refresh date per table |
 | **Certification Status** | Four-level trust badge (Certified / Draft / Deprecated / Experimental) — shown as colour-coded badge on table header and filterable in Browse and Search |
 | **Changelog** | Audit log of all tag changes, translation saves, and metadata saves, with filtering and table navigation |
@@ -134,7 +134,9 @@ Each table detail page has five tabs:
 
 ### Table Tags
 
-Each table can be labelled with one or more tags via the **🏷️ Manage Tags** expander in the detail header:
+Each table can be labelled with one or more tags via the **🏷️ Manage Tags** expander in the detail header.
+
+**Built-in tags** (select from dropdown):
 
 | Tag | Meaning |
 |---|---|
@@ -147,7 +149,9 @@ Each table can be labelled with one or more tags via the **🏷️ Manage Tags**
 | `audit` | Audit trail or change-log table |
 | `critical` | Business-critical — changes require approval |
 
-Tags are saved to `tags.json` and filter in the Browse page. All tag changes are recorded in the Changelog.
+**Custom tags** — type any label in the "Or type a custom tag" text input. The value is normalised automatically (lowercase, spaces → hyphens). Example: `Patient Data` → `patient-data`.
+
+Tags are saved to `tags.json` and filterable in the Browse page. All tag additions and removals are recorded in the Changelog.
 
 ### Table Metadata
 

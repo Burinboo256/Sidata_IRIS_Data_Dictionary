@@ -1738,20 +1738,44 @@ elif st.session_state.page in ("browse", "detail"):
 
                 # Tag management
                 with st.expander("🏷️ Manage Tags"):
+                    # ── Predefined tags
                     tc1, tc2 = st.columns([3, 1])
                     with tc1:
                         new_tag = st.selectbox(
-                            "Add tag", [t for t in PREDEFINED_TAGS if t not in tbl_tags],
+                            "Add predefined tag",
+                            [""] + [t for t in PREDEFINED_TAGS if t not in tbl_tags],
                             key=f"tag_add_sel_{tbl_name}",
                         )
                     with tc2:
                         st.markdown("<br>", unsafe_allow_html=True)
                         if st.button("Add", key=f"tag_add_btn_{tbl_name}", use_container_width=True):
-                            tbl_tags = list(tbl_tags) + [new_tag]
-                            st.session_state.tags[tbl_name] = tbl_tags
-                            save_tags(st.session_state.tags)
-                            append_changelog("tag_added", tbl_name, f"Added tag: {new_tag}")
-                            st.rerun()
+                            if new_tag and new_tag not in tbl_tags:
+                                tbl_tags = list(tbl_tags) + [new_tag]
+                                st.session_state.tags[tbl_name] = tbl_tags
+                                save_tags(st.session_state.tags)
+                                append_changelog("tag_added", tbl_name, f"Added tag: {new_tag}")
+                                st.rerun()
+                    # ── Custom tag
+                    cc1, cc2 = st.columns([3, 1])
+                    with cc1:
+                        custom_tag = st.text_input(
+                            "Or type a custom tag",
+                            key=f"tag_custom_{tbl_name}",
+                            placeholder="e.g. patient-data, raw, v2",
+                            max_chars=40,
+                        )
+                    with cc2:
+                        st.markdown("<br>", unsafe_allow_html=True)
+                        if st.button("Add", key=f"tag_custom_btn_{tbl_name}", use_container_width=True):
+                            _ctag = custom_tag.strip().lower().replace(" ", "-")
+                            if _ctag and _ctag not in tbl_tags:
+                                tbl_tags = list(tbl_tags) + [_ctag]
+                                st.session_state.tags[tbl_name] = tbl_tags
+                                save_tags(st.session_state.tags)
+                                append_changelog("tag_added", tbl_name, f"Added tag: {_ctag}")
+                                st.rerun()
+                            elif _ctag in tbl_tags:
+                                st.warning("Tag already exists.")
                     if tbl_tags:
                         st.markdown("**Current tags:**")
                         for tag in tbl_tags:

@@ -214,7 +214,7 @@ All functions below are imported from `storage.py` (not defined inline in `app.p
 
 ### Tags and metadata
 
-- **Tags** (`PREDEFINED_TAGS`): PII, financial, deprecated, master-data, staging, lookup, audit, critical — stored in `tags.json`, filterable in Browse.
+- **Tags** (`PREDEFINED_TAGS`): PII, financial, deprecated, master-data, staging, lookup, audit, critical — selectable from dropdown. Users can also type any custom tag (normalised to lowercase + hyphens). All tags stored in `tags.json`, filterable in Browse.
 - **Certification** (`CERT_OPTIONS`): Certified, Draft, Deprecated, Experimental — colour-coded badge on table header, filterable in Browse and Advanced Search.
 - **Metadata fields**: owner, steward, contact, update_frequency, last_refresh — displayed inline in table header.
 - All tag and metadata changes are recorded in `changelog.json` via `append_changelog()`.
