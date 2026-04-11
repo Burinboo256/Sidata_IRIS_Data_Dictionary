@@ -1,5 +1,8 @@
 streamlit>=1.35
 pandas>=2.0
-pyvis>=0.3
 openpyxl>=3.1
 plotly>=5.0
+
+# PostgreSQL backend (optional — only needed when backend = "postgres" in secrets.toml)
+sqlalchemy>=2.0
+psycopg2-binary>=2.9

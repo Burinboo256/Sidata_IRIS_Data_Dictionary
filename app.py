@@ -1,7 +1,6 @@
 import json
 import os
 import re
-import tempfile
 from datetime import datetime
 
 import pandas as pd
@@ -9,7 +8,16 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 import streamlit.components.v1 as components
-from pyvis.network import Network
+# ─── Storage backend (file or postgres — set via secrets.toml) ────────────────
+from storage import (
+    load_data,
+    load_translations, save_translations,
+    load_tags,        save_tags,
+    load_metadata,    save_metadata,
+    load_changelog,   append_changelog, clear_changelog,
+    load_usage_log,   log_event,
+    BACKEND,
+)
 
 # ─── Page config ─────────────────────────────────────────────────────────────
 
@@ -22,21 +30,12 @@ st.set_page_config(
 
 # ─── Constants ────────────────────────────────────────────────────────────────
 
-EXCEL_PATH = "iris_data_dict.xlsx"
-TRANSLATIONS_PATH = "translations.json"
-TAGS_PATH = "tags.json"
-CHANGELOG_PATH = "changelog.json"
-METADATA_PATH = "metadata.json"
-USAGE_LOG_PATH = "usage_log.json"
-
 # Pages that require admin passcode to access
 LOCKED_PAGES = {"changelog", "usage"}
 try:
     ADMIN_PASSCODE = st.secrets["admin_passcode"]
 except (KeyError, FileNotFoundError):
     ADMIN_PASSCODE = "admin1234"
-MAX_GRAPH_NODES = 60
-
 PREDEFINED_TAGS = ["PII", "financial", "deprecated", "master-data", "staging", "lookup", "audit", "critical"]
 
 TAG_COLORS = {
@@ -72,9 +71,6 @@ def _theme():
         "border":      "#2e3250" if dark else "#d0d0d0",
         "text":        "#e0e0e0" if dark else "#333333",
         "mermaid":     "dark"    if dark else "default",
-        "pyvis_bg":    "#1e2130" if dark else "#ffffff",
-        "pyvis_font":  "#e0e0e0" if dark else "#333333",
-        "pyvis_stroke":"#1e2130" if dark else "#ffffff",
         "plotly_bg":   "#1e2130" if dark else "#ffffff",
         "plotly_font": "#e0e0e0" if dark else "#333333",
         "hover_bg":    "#252a40" if dark else "#f0f4ff",
@@ -112,10 +108,6 @@ div[data-testid="column"] .stButton button:hover {{
 .badge-red    {{ background: #3a1a1a; color: #f76f6f; }}
 hr {{ border-color: {t["border"]}; }}
 h2, h3 {{ color: #c5cae9; }}
-.graph-legend span {{
-    display: inline-block; padding: 3px 10px; border-radius: 4px;
-    font-size: 12px; margin-right: 8px; font-weight: 600;
-}}
 """
     else:
         css = f"""
@@ -144,36 +136,17 @@ div[data-testid="column"] .stButton button:hover {{
 .badge-red    {{ background: #ffe0e0; color: #c00000; }}
 hr {{ border-color: {t["border"]}; }}
 h2, h3 {{ color: #333333; }}
-.graph-legend span {{
-    display: inline-block; padding: 3px 10px; border-radius: 4px;
-    font-size: 12px; margin-right: 8px; font-weight: 600;
-}}
 """
     st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
 _apply_css()
 
-# ─── Data loading ─────────────────────────────────────────────────────────────
+# ─── Data loading (delegated to storage.py) ──────────────────────────────────
 
-@st.cache_data(show_spinner="Loading data dictionary…")
-def load_data():
-    try:
-        xl = pd.ExcelFile(EXCEL_PATH)
-        tables  = xl.parse("sql_tables").fillna("")
-        fields  = xl.parse("sql_fields").fillna("")
-        fk      = xl.parse("fk_relationships").fillna("")
-        classes = xl.parse("classes").fillna("")
-        members = xl.parse("members").fillna("")
-        return tables, fields, fk, classes, members
-    except FileNotFoundError:
-        st.error(
-            f"**Data file not found:** `{EXCEL_PATH}`\n\n"
-            "Make sure the Excel file is in the same directory as `app.py`, then refresh the page."
-        )
-        st.stop()
-    except Exception as e:
-        st.error(f"**Failed to load data dictionary:** {e}\n\nPlease refresh the page.")
-        st.stop()
+@st.cache_data(show_spinner=False)
+def _cached_load_data():
+    """Cache-wrap storage.load_data() so the xlsx / DB is only read once."""
+    return load_data()
 
 
 @st.cache_data(show_spinner=False)
@@ -190,396 +163,14 @@ def compute_completeness(_fields_df):
         return {}
 
 
-@st.cache_data(show_spinner="Collecting graph data…")
-def collect_graph_data(center_table: str, depth: int, _fk_df, _tables_df) -> tuple:
-    """Return (nodes_dict, edges_list).
-    nodes_dict : {table_name: 'center'|'out'|'in'}
-    edges_list : [(src_table, tgt_table, field_label)]
-    """
-    resolved = _fk_df[_fk_df["resolve_status"] == "resolved"]
-    nodes: dict = {center_table: "center"}
-    edges: list = []
-    edges_seen: set = set()
-    frontier = {center_table}
-
-    for _ in range(depth):
-        next_frontier: set = set()
-        for current in list(frontier):
-            # Outgoing
-            for _, r in resolved[resolved["source_sql_table_name"] == current].iterrows():
-                target = str(r["target_sql_table_name"])
-                if not target or target == "nan" or len(nodes) >= MAX_GRAPH_NODES:
-                    continue
-                if target not in nodes:
-                    nodes[target] = "out"
-                    next_frontier.add(target)
-                field = str(r["source_sql_field_name"])
-                if field in ("", "nan"):
-                    field = str(r["source_member_name"])
-                key = (current, target, field[:30])
-                if key not in edges_seen:
-                    edges_seen.add(key)
-                    edges.append((current, target, field))
-
-            # Incoming
-            for _, r in resolved[resolved["target_sql_table_name"] == current].iterrows():
-                src_tbl = str(r["source_sql_table_name"])
-                if not src_tbl or src_tbl == "nan" or len(nodes) >= MAX_GRAPH_NODES:
-                    continue
-                if src_tbl not in nodes:
-                    nodes[src_tbl] = "in"
-                    next_frontier.add(src_tbl)
-                field = str(r["source_sql_field_name"])
-                if field in ("", "nan"):
-                    field = str(r["source_member_name"])
-                key = (src_tbl, current, field[:30])
-                if key not in edges_seen:
-                    edges_seen.add(key)
-                    edges.append((src_tbl, current, field))
-
-            if len(nodes) >= MAX_GRAPH_NODES:
-                break
-        frontier = next_frontier
-        if not frontier:
-            break
-
-    return nodes, edges
-
-
-def build_pyvis_html(center_table: str, nodes_dict: dict, edges: list) -> str:
-    """Render collected graph data as an interactive pyvis network."""
-    try:
-        t = _theme()
-        net = Network(
-            height="560px", width="100%", directed=True,
-            bgcolor=t["pyvis_bg"], font_color=t["pyvis_font"],
-        )
-        COLORS = {"center": "#4c6ef5", "out": "#6fcf97", "in": "#f7a96f"}
-        SIZES  = {"center": 40, "out": 22, "in": 22}
-
-        for name, role in nodes_dict.items():
-            net.add_node(
-                name, label=name,
-                color=COLORS.get(role, "#888"), size=SIZES.get(role, 22),
-                title=f"<b>{name}</b>",
-                font={"size": 11, "color": t["pyvis_font"], "strokeWidth": 3, "strokeColor": t["pyvis_stroke"]},
-            )
-
-        added_edges: set = set()
-        for src, tgt, label in edges:
-            key = (src, tgt, label[:30])
-            if key in added_edges:
-                continue
-            added_edges.add(key)
-            net.add_edge(
-                src, tgt,
-                title=label,
-                label=label if len(label) <= 22 else "",
-                color={"color": "#5a6278", "highlight": "#4c6ef5"},
-                arrows="to",
-                font={"size": 9, "strokeWidth": 2, "strokeColor": t["pyvis_stroke"]},
-            )
-
-        net.set_options("""{
-          "physics": {
-            "barnesHut": {
-              "gravitationalConstant": -8000, "centralGravity": 0.3,
-              "springLength": 130, "springConstant": 0.04, "damping": 0.09
-            }
-          },
-          "nodes": {"borderWidth": 2, "shape": "dot"},
-          "edges": {"smooth": {"type": "curvedCW", "roundness": 0.1}},
-          "interaction": {"hover": true, "tooltipDelay": 80}
-        }""")
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tmp_path = os.path.join(tmpdir, "graph.html")
-            net.save_graph(tmp_path)
-            with open(tmp_path, "r", encoding="utf-8") as f:
-                html = f.read()
-        return html
-    except Exception as e:
-        return (
-            "<html><body style='background:#1e2130;color:#e0e0e0;"
-            "font-family:sans-serif;padding:24px'>"
-            f"<b style='color:salmon'>Network graph failed to render:</b><br><pre>{e}</pre>"
-            "<br><button onclick='location.reload()' style='padding:6px 14px;"
-            "border-radius:4px;cursor:pointer'>Refresh page</button>"
-            "</body></html>"
-        )
-
-
 def mermaid_id(name: str) -> str:
     """Sanitize a table name to a valid Mermaid node ID."""
     return re.sub(r"[^a-zA-Z0-9]", "_", str(name))
 
 
-def build_mermaid_html(
-    center_table: str,
-    nodes_dict: dict,
-    edges: list,
-    direction: str = "LR",
-    group_modules: bool = True,
-) -> tuple:
-    """Render collected graph data as a Mermaid flowchart.
-    Returns (html_string, raw_mermaid_code).
-    """
-    try:
-        t = _theme()
-        tbl_to_module = tables.set_index("sql_table_name")["module_name"].to_dict()
-        tbl_to_prefix = tables.set_index("sql_table_name")["module_prefix"].to_dict()
-
-        lines = [f"flowchart {direction}"]
-
-        if group_modules:
-            groups: dict = {}
-            for tname in nodes_dict:
-                mod = tbl_to_module.get(tname, "Unknown")
-                groups.setdefault(mod, []).append(tname)
-
-            for mod_name in sorted(groups):
-                mod_id = mermaid_id(mod_name)
-                prefix = tbl_to_prefix.get(groups[mod_name][0], "")
-                lines.append(f'    subgraph {mod_id}["{prefix} · {mod_name}"]')
-                for tname in sorted(groups[mod_name]):
-                    nid = mermaid_id(tname)
-                    lines.append(f'        {nid}["{tname}"]')
-                lines.append("    end")
-        else:
-            for tname in sorted(nodes_dict):
-                nid = mermaid_id(tname)
-                lines.append(f'    {nid}["{tname}"]')
-
-        # Edges — deduplicated
-        seen_edges: set = set()
-        for src, tgt, label in edges:
-            sid, tid = mermaid_id(src), mermaid_id(tgt)
-            lbl = label[:26] + "…" if len(label) > 26 else label
-            key = (sid, tid, lbl)
-            if key in seen_edges:
-                continue
-            seen_edges.add(key)
-            if lbl:
-                lines.append(f'    {sid} -->|"{lbl}"| {tid}')
-            else:
-                lines.append(f'    {sid} --> {tid}')
-
-        # Highlight center
-        lines.append(
-            f"    style {mermaid_id(center_table)} "
-            "fill:#4c6ef5,color:#fff,stroke:#7eb8f7,stroke-width:3px"
-        )
-
-        mermaid_code = "\n".join(lines)
-        _code_js = mermaid_code.replace("\\", "\\\\").replace("`", "\\`").replace("$", "\\$")
-
-        html = f"""<!DOCTYPE html>
-<html><head>
-<meta charset="utf-8">
-<style>
-  body {{
-    margin: 0; padding: 14px;
-    background: {t["bg"]}; overflow: auto;
-    font-family: 'Segoe UI', sans-serif;
-  }}
-  #diagram svg {{ max-width: 100% !important; height: auto; }}
-  .dl-btn {{
-    padding: 4px 11px; border: 1px solid {t["border"]}; border-radius: 4px;
-    cursor: pointer; font-size: 12px; background: {t["card_bg"]}; color: {t["text"]};
-    margin-right: 6px;
-  }}
-  .dl-btn:hover {{ opacity: 0.8; }}
-</style>
-</head>
-<body>
-<div id="btn-bar" style="display:none; margin-bottom:8px">
-  <button class="dl-btn" id="btn-svg">&#11015; SVG</button>
-  <button class="dl-btn" id="btn-png">&#11015; PNG</button>
-</div>
-<div id="diagram"></div>
-<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-<script>
-mermaid.initialize({{
-  startOnLoad: false,
-  theme: "{t["mermaid"]}",
-  flowchart: {{ useMaxWidth: false, htmlLabels: true, curve: "basis", padding: 20 }},
-  securityLevel: "loose"
-}});
-var _done = false;
-var _svgStr = "";
-var _code = `{_code_js}`;
-async function _render() {{
-  if (_done) return;
-  if (document.body.offsetWidth === 0) {{ setTimeout(_render, 150); return; }}
-  _done = true;
-  try {{
-    var r = await mermaid.render("flow-svg", _code);
-    _svgStr = r.svg;
-    document.getElementById("diagram").innerHTML = _svgStr;
-    document.getElementById("btn-bar").style.display = "block";
-  }} catch(e) {{
-    document.getElementById("diagram").innerHTML =
-      "<pre style='color:salmon;white-space:pre-wrap'>" + e.message + "</pre>";
-  }}
-}}
-_render();
-document.getElementById("btn-svg").onclick = function() {{
-  var blob = new Blob([_svgStr], {{type: "image/svg+xml;charset=utf-8"}});
-  var url = URL.createObjectURL(blob);
-  var a = document.createElement("a"); a.href = url; a.download = "graph_diagram.svg";
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  setTimeout(function() {{ URL.revokeObjectURL(url); }}, 1000);
-}};
-document.getElementById("btn-png").onclick = function() {{
-  var svgEl = document.querySelector("#diagram svg");
-  if (!svgEl) return;
-  var w = svgEl.getBoundingClientRect().width || 1200;
-  var h = svgEl.getBoundingClientRect().height || 800;
-  var scale = 2;
-  var canvas = document.createElement("canvas");
-  canvas.width = Math.round(w * scale); canvas.height = Math.round(h * scale);
-  var ctx = canvas.getContext("2d");
-  ctx.fillStyle = "{t["bg"]}"; ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.scale(scale, scale);
-  var img = new Image();
-  var blob = new Blob([_svgStr], {{type: "image/svg+xml;charset=utf-8"}});
-  var url = URL.createObjectURL(blob);
-  img.onload = function() {{
-    try {{
-      ctx.drawImage(img, 0, 0, w, h);
-      URL.revokeObjectURL(url);
-      var a = document.createElement("a");
-      a.href = canvas.toDataURL("image/png"); a.download = "graph_diagram.png";
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    }} catch(e) {{ URL.revokeObjectURL(url); alert("PNG export failed — use SVG instead."); }}
-  }};
-  img.onerror = function() {{ URL.revokeObjectURL(url); alert("PNG export failed — use SVG instead."); }};
-  img.src = url;
-}};
-</script>
-</body></html>"""
-
-        return html, mermaid_code
-    except Exception as e:
-        err_html = (
-            "<html><body style='background:#1e2130;color:#e0e0e0;"
-            "font-family:sans-serif;padding:24px'>"
-            f"<b style='color:salmon'>Graph diagram failed to build:</b><br><pre>{e}</pre>"
-            "<br><button onclick='location.reload()' style='padding:6px 14px;"
-            "border-radius:4px;cursor:pointer'>Refresh page</button>"
-            "</body></html>"
-        )
-        return err_html, f"# error: {e}"
-
-
 def extract_storage(class_decl: str) -> str:
     m = re.search(r"StorageStrategy\s*=\s*([a-zA-Z0-9_]+)", class_decl)
     return m.group(1) if m else "Default"
-
-
-# ─── Persistence helpers ──────────────────────────────────────────────────────
-
-def load_translations() -> dict:
-    if os.path.exists(TRANSLATIONS_PATH):
-        try:
-            with open(TRANSLATIONS_PATH, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except (json.JSONDecodeError, OSError):
-            return {}
-    return {}
-
-
-def save_translations(data: dict):
-    try:
-        with open(TRANSLATIONS_PATH, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-    except OSError as e:
-        st.warning(f"Could not save translations: {e}")
-
-
-def load_tags() -> dict:
-    if os.path.exists(TAGS_PATH):
-        try:
-            with open(TAGS_PATH, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except (json.JSONDecodeError, OSError):
-            return {}
-    return {}
-
-
-def save_tags(data: dict):
-    try:
-        with open(TAGS_PATH, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-    except OSError as e:
-        st.warning(f"Could not save tags: {e}")
-
-
-def load_metadata() -> dict:
-    if os.path.exists(METADATA_PATH):
-        try:
-            with open(METADATA_PATH, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except (json.JSONDecodeError, OSError):
-            return {}
-    return {}
-
-
-def save_metadata(data: dict):
-    try:
-        with open(METADATA_PATH, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-    except OSError as e:
-        st.warning(f"Could not save metadata: {e}")
-
-
-def load_usage_log() -> list:
-    if os.path.exists(USAGE_LOG_PATH):
-        try:
-            with open(USAGE_LOG_PATH, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except (json.JSONDecodeError, OSError):
-            return []
-    return []
-
-
-def log_event(event: str, details: dict = None):
-    try:
-        log = load_usage_log()
-        log.append({
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "event": event,
-            "details": details or {},
-        })
-        with open(USAGE_LOG_PATH, "w", encoding="utf-8") as f:
-            json.dump(log[-10000:], f, ensure_ascii=False)
-    except Exception:
-        pass  # logging must never crash the app
-
-
-def load_changelog() -> list:
-    if os.path.exists(CHANGELOG_PATH):
-        try:
-            with open(CHANGELOG_PATH, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except (json.JSONDecodeError, OSError):
-            return []
-    return []
-
-
-def append_changelog(action: str, table: str, details: str):
-    try:
-        log = load_changelog()
-        log.insert(0, {
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "action": action,
-            "table": table,
-            "details": details,
-        })
-        with open(CHANGELOG_PATH, "w", encoding="utf-8") as f:
-            json.dump(log[:1000], f, ensure_ascii=False, indent=2)
-    except Exception:
-        pass  # changelog write must never crash the app
 
 
 # ─── Export helpers ───────────────────────────────────────────────────────────
@@ -1579,7 +1170,7 @@ def _cytoscape_error_html(err: Exception, height: int) -> str:
 # ─── Load all data ────────────────────────────────────────────────────────────
 
 try:
-    tables, fields, fk, classes, members = load_data()
+    tables, fields, fk, classes, members = _cached_load_data()
 except Exception as _load_err:
     st.error(f"**Fatal: could not load app data.** {_load_err}\n\nPlease refresh the page.")
     st.stop()
@@ -1614,8 +1205,6 @@ for key, default in [
     ("selected_table", None),
     ("browse_module", "All modules"),
     ("browse_filter", ""),
-    ("graph_center", None),
-    ("graph_depth", 1),
     ("recently_viewed", []),
     ("analytics_tab", 0),
     ("theme", "dark"),
@@ -1716,7 +1305,6 @@ with st.sidebar:
         "home":      "🏠  Home",
         "search":    "🔍  Search",
         "browse":    "📁  Browse",
-        "graph":     "🕸️  Graph",
         "analytics": "📊  Analytics",
         "changelog": "📋  Changelog",
         "usage":     "📈  Usage Stats",
@@ -1757,6 +1345,7 @@ with st.sidebar:
     trans_count = sum(len(v) for v in st.session_state.translations.values())
     total_fields = len(fields)
     st.caption(f"🇹🇭 TH Translations: **{trans_count:,}** / {total_fields:,} fields")
+    st.caption(f"💾 Backend: **{BACKEND}**")
 
     # Theme toggle
     st.markdown("---")
@@ -2236,9 +1825,6 @@ elif st.session_state.page in ("browse", "detail"):
             with hcol2:
                 score = COMPLETENESS.get(class_name, 0)
                 st.metric("EN Desc", f"{score}%")
-                if st.button("🕸️ Graph", key="goto_graph", use_container_width=True):
-                    st.session_state.graph_center = tbl_name
-                    nav("graph")
             with hcol3:
                 st.markdown("<br>", unsafe_allow_html=True)
                 csv_bytes = schema_to_csv(fields, fk, tbl_name, class_name)
@@ -2601,10 +2187,47 @@ elif st.session_state.page in ("browse", "detail"):
                         disabled=(fk_renderer == "Interactive (Cytoscape)"),
                     )
                     fk_max_entities = st.slider(
-                        "Max entities per diagram", min_value=5, max_value=100,
+                        "Max entities per diagram", min_value=5, max_value=250,
                         value=25, step=5,
                         key=f"fk_er_maxent_{tbl_name}",
                         help="Raise this to show more tables; lower it to keep the diagram readable.",
+                    )
+
+                # ── Module filter ─────────────────────────────────────────────
+                # Compute all modules present in the full FK neighbor set
+                _all_fk_tables = list({tbl_name} | set(out_tbls) | set(in_tbls))
+                _tbl_module_map = (
+                    tables[tables["sql_table_name"].isin(_all_fk_tables)]
+                    .set_index("sql_table_name")["module_name"]
+                    .to_dict()
+                )
+                _all_modules_in_fk = sorted({
+                    m for m in _tbl_module_map.values() if m
+                })
+                _center_module = _tbl_module_map.get(tbl_name, "")
+
+                fk_mf_col, fk_cross_col = st.columns([4, 1])
+                with fk_mf_col:
+                    fk_module_filter = st.multiselect(
+                        "Filter by module (empty = all)",
+                        options=_all_modules_in_fk,
+                        default=[],
+                        key=f"fk_module_filter_{tbl_name}",
+                        help=(
+                            "Show only FK neighbors belonging to the selected modules. "
+                            "The center table is always included."
+                        ),
+                    )
+                with fk_cross_col:
+                    fk_cross_module = st.checkbox(
+                        "Cross-module refs",
+                        value=False,
+                        key=f"fk_cross_module_{tbl_name}",
+                        help=(
+                            "Also include tables from other modules that the FK neighbors reference. "
+                            "Only applies to Mermaid renderer."
+                        ),
+                        disabled=(fk_renderer == "Interactive (Cytoscape)"),
                     )
 
                 st.caption(
@@ -2612,13 +2235,25 @@ elif st.session_state.page in ("browse", "detail"):
                     f"incoming FK from **{len(in_tbls)}** table(s)"
                 )
 
+                def _apply_module_filter(tbls: list, center: str, module_filter: list) -> list:
+                    """Keep only tables whose module is in module_filter (center always kept)."""
+                    if not module_filter:
+                        return tbls
+                    return [
+                        t for t in tbls
+                        if t == center or _tbl_module_map.get(t, "") in module_filter
+                    ]
+
                 # ── Interactive (Cytoscape) view ──
                 if fk_renderer == "Interactive (Cytoscape)":
-                    candidate_tables = list({tbl_name} | set(out_tbls) | set(in_tbls))
+                    candidate_tables = _apply_module_filter(
+                        list({tbl_name} | set(out_tbls) | set(in_tbls)),
+                        tbl_name, fk_module_filter,
+                    )
                     _truncated = False
                     if len(candidate_tables) > fk_max_entities:
                         _truncated = True
-                        _pool = [t for t in out_tbls if t != tbl_name] + [t for t in in_tbls if t != tbl_name]
+                        _pool = [t for t in candidate_tables if t != tbl_name]
                         _seen2: set = set()
                         _ordered2 = []
                         for _t in _pool:
@@ -2656,11 +2291,14 @@ elif st.session_state.page in ("browse", "detail"):
 
                         with sv_col_out:
                             st.markdown("**↗ Outgoing**")
-                            out_candidates = [tbl_name] + out_tbls[:fk_max_entities - 1]
-                            _out_trunc = len(out_tbls) >= fk_max_entities
+                            _out_filtered = _apply_module_filter(
+                                [tbl_name] + out_tbls, tbl_name, fk_module_filter
+                            )
+                            out_candidates = _out_filtered[:fk_max_entities]
+                            _out_trunc = len(_out_filtered) > fk_max_entities
                             if _out_trunc:
                                 st.warning(
-                                    f"Showing {fk_max_entities} of {len(out_tbls) + 1} — "
+                                    f"Showing {fk_max_entities} of {len(_out_filtered)} — "
                                     "raise the slider to see more."
                                 )
                             if len(out_candidates) == 1:
@@ -2670,7 +2308,7 @@ elif st.session_state.page in ("browse", "detail"):
                                     out_candidates,
                                     include_fields=fk_show_fields,
                                     max_fields=int(fk_max_fields),
-                                    cross_module=False,
+                                    cross_module=fk_cross_module,
                                     direction=fk_er_dir,
                                 )
                                 components.html(_html, height=560, scrolling=True)
@@ -2679,11 +2317,14 @@ elif st.session_state.page in ("browse", "detail"):
 
                         with sv_col_in:
                             st.markdown("**↙ Incoming**")
-                            in_candidates = [tbl_name] + in_tbls[:fk_max_entities - 1]
-                            _in_trunc = len(in_tbls) >= fk_max_entities
+                            _in_filtered = _apply_module_filter(
+                                [tbl_name] + in_tbls, tbl_name, fk_module_filter
+                            )
+                            in_candidates = _in_filtered[:fk_max_entities]
+                            _in_trunc = len(_in_filtered) > fk_max_entities
                             if _in_trunc:
                                 st.warning(
-                                    f"Showing {fk_max_entities} of {len(in_tbls) + 1} — "
+                                    f"Showing {fk_max_entities} of {len(_in_filtered)} — "
                                     "raise the slider to see more."
                                 )
                             if len(in_candidates) == 1:
@@ -2693,7 +2334,7 @@ elif st.session_state.page in ("browse", "detail"):
                                     in_candidates,
                                     include_fields=fk_show_fields,
                                     max_fields=int(fk_max_fields),
-                                    cross_module=False,
+                                    cross_module=fk_cross_module,
                                     direction=fk_er_dir,
                                 )
                                 components.html(_html, height=560, scrolling=True)
@@ -2703,16 +2344,18 @@ elif st.session_state.page in ("browse", "detail"):
                 # ── Single Mermaid diagram view ──
                 else:
                     if fk_include == "Outgoing only":
-                        candidate_tables = list({tbl_name} | set(out_tbls))
+                        _base_pool = list({tbl_name} | set(out_tbls))
                     elif fk_include == "Incoming only":
-                        candidate_tables = list({tbl_name} | set(in_tbls))
+                        _base_pool = list({tbl_name} | set(in_tbls))
                     else:
-                        candidate_tables = list({tbl_name} | set(out_tbls) | set(in_tbls))
+                        _base_pool = list({tbl_name} | set(out_tbls) | set(in_tbls))
+
+                    _filtered_pool = _apply_module_filter(_base_pool, tbl_name, fk_module_filter)
 
                     _truncated = False
-                    if len(candidate_tables) > fk_max_entities:
+                    if len(_filtered_pool) > fk_max_entities:
                         _truncated = True
-                        _pool = [t for t in out_tbls if t != tbl_name] + [t for t in in_tbls if t != tbl_name]
+                        _pool = [t for t in _filtered_pool if t != tbl_name]
                         _seen: set = set()
                         _ordered = []
                         for t in _pool:
@@ -2720,10 +2363,12 @@ elif st.session_state.page in ("browse", "detail"):
                                 _seen.add(t)
                                 _ordered.append(t)
                         candidate_tables = [tbl_name] + _ordered[:fk_max_entities - 1]
+                    else:
+                        candidate_tables = _filtered_pool
 
                     if _truncated:
                         st.warning(
-                            f"Showing **{fk_max_entities}** of **{len(out_tbls) + len(in_tbls) + 1}** entities — "
+                            f"Showing **{fk_max_entities}** of **{len(_filtered_pool)}** entities — "
                             "raise the slider or switch to **Split view** to see both sides in full."
                         )
 
@@ -2734,7 +2379,7 @@ elif st.session_state.page in ("browse", "detail"):
                             candidate_tables,
                             include_fields=fk_show_fields,
                             max_fields=int(fk_max_fields),
-                            cross_module=False,
+                            cross_module=fk_cross_module,
                             direction=fk_er_dir,
                         )
                         components.html(fk_er_html, height=620, scrolling=True)
@@ -2839,97 +2484,6 @@ elif st.session_state.page in ("browse", "detail"):
                             "MS SQL Type": iris_to_mssql(iris_t),
                         })
                     st.dataframe(pd.DataFrame(type_rows), width="stretch", hide_index=True)
-
-# ─── GRAPH ────────────────────────────────────────────────────────────────────
-
-elif st.session_state.page == "graph":
-    st.title("🕸️ Relationship Graph")
-
-    all_table_names = sorted(tables["sql_table_name"].tolist())
-    default_center = st.session_state.graph_center or (
-        st.session_state.selected_table if st.session_state.selected_table else all_table_names[0]
-    )
-    default_idx = all_table_names.index(default_center) if default_center in all_table_names else 0
-
-    # ── Controls
-    gc1, gc2, gc3 = st.columns([3, 1, 2])
-    with gc1:
-        center = st.selectbox(
-            "Center table", all_table_names, index=default_idx, key="graph_center_sel"
-        )
-        st.session_state.graph_center = center
-    with gc2:
-        depth = st.selectbox("Hops", [1, 2], index=st.session_state.graph_depth - 1, key="graph_depth_sel")
-        st.session_state.graph_depth = depth
-    with gc3:
-        presentation = st.radio(
-            "Presentation", ["🔵 Network", "📊 Mermaid"],
-            horizontal=True, key="graph_presentation",
-        )
-
-    is_mermaid = presentation == "📊 Mermaid"
-
-    # ── Mermaid-specific options
-    if is_mermaid:
-        mo1, mo2 = st.columns([2, 2])
-        with mo1:
-            dir_choice = st.radio(
-                "Direction",
-                ["Left → Right (LR)", "Top → Bottom (TD)"],
-                horizontal=True, key="mermaid_dir",
-            )
-            mermaid_direction = "LR" if "LR" in dir_choice else "TD"
-        with mo2:
-            st.markdown("<br>", unsafe_allow_html=True)
-            group_modules = st.checkbox(
-                "Group by module (subgraphs)", value=True, key="mermaid_grp"
-            )
-
-    # ── Legend
-    st.markdown(
-        '<div class="graph-legend">'
-        '<span style="background:#4c6ef5;color:#fff">⬤  Center</span>'
-        '<span style="background:#6fcf97;color:#1e2130">⬤  Outgoing refs</span>'
-        '<span style="background:#f7a96f;color:#1e2130">⬤  Incoming refs</span>'
-        "</div>",
-        unsafe_allow_html=True,
-    )
-    st.caption(f"Max {MAX_GRAPH_NODES} nodes shown. Hover nodes/edges for details.")
-
-    if center:
-        nodes_dict, edges = collect_graph_data(center, depth, fk, tables)
-
-        if len(nodes_dict) >= MAX_GRAPH_NODES:
-            st.warning(
-                f"Graph reached the {MAX_GRAPH_NODES}-node limit — "
-                "not all connections are shown. Try reducing hops."
-            )
-
-        if is_mermaid:
-            m_html, m_code = build_mermaid_html(
-                center, nodes_dict, edges,
-                direction=mermaid_direction,
-                group_modules=group_modules,
-            )
-            components.html(m_html, height=640, scrolling=True)
-            with st.expander("Raw Mermaid code  ·  paste into mermaid.live or Notion"):
-                st.code(m_code, language="text")
-        else:
-            p_html = build_pyvis_html(center, nodes_dict, edges)
-            components.html(p_html, height=580, scrolling=False)
-
-        # Connected tables navigation
-        connected = sorted(set(nodes_dict.keys()) - {center})
-        if connected:
-            st.markdown("---")
-            st.subheader("Connected tables")
-            st.caption("Click any table below to open its detail page.")
-            NCOLS = 5
-            cg = [st.columns(NCOLS) for _ in range((len(connected) + NCOLS - 1) // NCOLS)]
-            for i, tbl in enumerate(connected):
-                with cg[i // NCOLS][i % NCOLS]:
-                    if st.button(tbl, key=f"gn_{tbl}", use_container_width=True):
-                        nav("detail", table=tbl)
 
 # ─── ANALYTICS ───────────────────────────────────────────────────────────────
 
@@ -3551,7 +3105,6 @@ elif st.session_state.page == "changelog":
         # Clear changelog
         st.markdown("---")
         if st.button("🗑️ Clear all changelog entries", type="secondary", key="cl_clear"):
-            with open(CHANGELOG_PATH, "w", encoding="utf-8") as f:
-                json.dump([], f)
+            clear_changelog()
             st.success("Changelog cleared.")
             st.rerun()

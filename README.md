@@ -16,7 +16,6 @@ Built with **Streamlit** and reads directly from `iris_data_dict.xlsx`.
 | **Schema view** | Columns with IRIS types, MS SQL equivalent types, descriptions, FK references, parameters & triggers |
 | **FK Diagram** | Per-table ER diagram tab — shows outgoing and incoming FK links; choose **Mermaid (static)** or **Interactive (Cytoscape)** renderer |
 | **Lineage** | Column-level lineage tab — exact field-to-field FK paths upstream and downstream |
-| **Relationship graph** | Interactive network (pyvis) or Mermaid flowchart with module subgraphs; 1–2 hop depth |
 | **SQL Builder** | Generate `SELECT` statements; IRIS arrow-syntax (`->`) examples for reference fields |
 | **Thai descriptions** | Inline editor to add Thai field descriptions, saved locally to `translations.json` |
 | **Table Tags** | Label tables with PII, financial, deprecated, master-data, staging, lookup, audit, critical |
@@ -30,7 +29,7 @@ Built with **Streamlit** and reads directly from `iris_data_dict.xlsx`.
 | **Analytics** | Module Dependency Map, Hub Tables, Orphan Tables, ER Diagram (multi-table scope; Mermaid or Interactive Cytoscape renderer) |
 | **Usage Stats** | Track sessions, page views, table views, and searches; charts for sessions/day, feature usage, top tables, and top searches |
 | **Dark / Light mode** | Toggle between dark and light themes from the sidebar |
-| **Diagram export** | Download any Mermaid diagram (FK Diagram, ER Diagram, Graph, Module Dependency) as **SVG** or **PNG** |
+| **Diagram export** | Download any Mermaid diagram (FK Diagram, ER Diagram, Module Dependency) as **SVG** or **PNG** |
 | **Admin lock** | Changelog and Usage Stats pages are passcode-protected; admin mode unlocks them for the session |
 
 ---
@@ -45,7 +44,6 @@ Quick reference for where to find every feature in the app:
 | 🔍 Search | Sidebar → **Search** (searches table names, EN descriptions, field names/types, and Thai descriptions) |
 | 🔍 Advanced Search | Sidebar → **Search** → expand **🔍 Advanced Filters** panel |
 | 📁 Browse | Sidebar → **Browse** (filter by module, name, tag, and certification; click any row to open detail) |
-| 🕸️ Graph | Sidebar → **Graph** (interactive network or Mermaid flowchart, 1–2 hops) |
 | 📊 Analytics | Sidebar → **Analytics** (Module Dependency Map, Hub Tables, Orphan Tables, ER Diagram) |
 | 📋 Changelog | Sidebar → **Changelog** 🔒 *(requires admin passcode)* |
 | 📈 Usage Stats | Sidebar → **Usage Stats** 🔒 *(requires admin passcode)* |
@@ -54,7 +52,7 @@ Quick reference for where to find every feature in the app:
 | 📋 Schema | Browse → click a table → **1st tab "📋 Schema"** (IRIS type, MS SQL type, FK references) |
 | ⚙️ SQL Builder | Browse → click a table → **2nd tab "⚙️ SQL Builder"** |
 | 🇹🇭 Thai Desc | Browse → click a table → **3rd tab "🇹🇭 Thai Descriptions"** |
-| 📐 FK Diagram | Browse → click a table → **4th tab "📐 FK Diagram"** (slider for entity limit; Split view for side-by-side) |
+| 📐 FK Diagram | Browse → click a table → **4th tab "📐 FK Diagram"** (slider up to 250 entities; module filter; Split view) |
 | 🔗 Lineage | Browse → click a table → **5th tab "🔗 Lineage"** (column-level upstream/downstream FK paths) |
 | ☀️ / 🌙 Theme | Bottom of sidebar → **Light Mode / Dark Mode** toggle |
 
@@ -69,7 +67,7 @@ pip install -r requirements.txt
 Or individually:
 
 ```bash
-pip install streamlit pandas pyvis openpyxl plotly
+pip install streamlit pandas openpyxl plotly
 ```
 
 ---
@@ -241,7 +239,9 @@ Controls:
 | **Show fields** | on / off | Toggle field list inside each entity box |
 | **Max fields/table** | 3–30 (default 6) | Caps fields shown per entity when "Show fields" is on |
 | **Layout** | LR · TB | Left-to-right or top-to-bottom (Mermaid only) |
-| **Max entities per diagram** | 5–100 (default 25) | Raise to see more tables; lower for a cleaner view |
+| **Max entities per diagram** | 5–250 (default 25) | Raise to see more tables; lower for a cleaner view |
+| **Filter by module** | multiselect (empty = all) | Show only FK neighbors from selected modules; center table always kept |
+| **Cross-module refs** | on / off | Also draw tables from other modules that filtered tables reference (Mermaid only) |
 
 ### Mermaid (static) renderer
 
@@ -279,7 +279,7 @@ When the diagram exceeds the entity limit a warning guides you to raise the slid
 
 The **ER Diagram** tab has the same Renderer toggle as the FK Diagram tab — see [Interactive (Cytoscape) renderer](#interactive-cytoscape-renderer) above for full feature list.
 
-> **Note — Mermaid rendering:** All Mermaid diagrams (ER Diagram, FK Diagram, Module Dependency Map, Graph) use `mermaid.render()` with `offsetWidth` polling to defer rendering until the tab is visible. This avoids a Streamlit hidden-tab issue where Mermaid fails to compute SVG geometry inside a `display:none` container. Diagrams render automatically as soon as their tab is opened.
+> **Note — Mermaid rendering:** All Mermaid diagrams (ER Diagram, FK Diagram, Module Dependency Map) use `mermaid.render()` with `offsetWidth` polling to defer rendering until the tab is visible. This avoids a Streamlit hidden-tab issue where Mermaid fails to compute SVG geometry inside a `display:none` container. Diagrams render automatically as soon as their tab is opened.
 
 > **Diagram export:** All Mermaid diagrams show **⬇ SVG** and **⬇ PNG** download buttons once rendered. SVG is lossless vector; PNG is 2× resolution raster. The Interactive Cytoscape renderer exports **⬇ PNG** (2× resolution) from the toolbar inside the diagram.
 
@@ -333,8 +333,7 @@ The app is designed to degrade gracefully rather than crash:
 | Disk full / permission error on save | `st.warning(...)` shown — app continues running without crashing |
 | Usage logging / changelog write failure | Silent pass — logging must never crash the app |
 | Startup analytics / completeness computation fails | Returns empty DataFrames — app loads with reduced analytics |
-| Network graph (`build_pyvis_html`) fails | Error message rendered inside the iframe with a **Refresh page** button |
-| Mermaid diagram (`build_mermaid_html`, `build_er_mermaid`) fails | Error HTML returned; Mermaid JS itself also shows render errors inline |
+| Mermaid diagram (`build_er_mermaid`) fails | Error HTML returned; Mermaid JS itself also shows render errors inline |
 | Cytoscape diagram call site fails | `_cytoscape_error_html()` rendered inside the iframe with a **Refresh page** button |
 
 ---
@@ -385,6 +384,97 @@ admin_passcode = "your_passcode_here"
 
 ---
 
+## Storage backend
+
+The app supports two interchangeable storage backends, selected via `.streamlit/secrets.toml`. The rendering code in `app.py` is identical for both — only `storage.py` changes behaviour.
+
+| Backend | Key in secrets.toml | When to use |
+|---|---|---|
+| **File** (default) | `backend = "file"` | Local dev, single-user, no database setup needed |
+| **PostgreSQL** | `backend = "postgres"` | Production, multi-user, concurrent writes |
+
+### Switching to PostgreSQL
+
+**1. Set up secrets.toml**
+
+```toml
+admin_passcode = "your_passcode_here"
+backend        = "postgres"
+database_url   = "postgresql://user:password@host:5432/iris_dict"
+```
+
+**2. Install extra dependencies**
+
+```bash
+pip install sqlalchemy psycopg2-binary
+```
+
+**3. Create the database** (PostgreSQL must already be running)
+
+```sql
+CREATE DATABASE iris_dict;
+CREATE USER iris_user WITH PASSWORD 'your_password';
+GRANT ALL PRIVILEGES ON DATABASE iris_dict TO iris_user;
+```
+
+**4. Import xlsx data into PostgreSQL**
+
+This creates all tables and loads the five dictionary sheets:
+
+```bash
+python import_xlsx.py
+```
+
+Optional flags:
+
+```bash
+# Use a specific connection URL (overrides secrets.toml)
+python import_xlsx.py --db postgresql://user:pass@host:5432/iris_dict
+
+# Use a different xlsx file
+python import_xlsx.py --xlsx /path/to/iris_data_dict.xlsx
+
+# Drop and reimport all dict_* tables (full refresh after xlsx update)
+python import_xlsx.py --drop
+```
+
+**5. Start the app**
+
+```bash
+streamlit run app.py
+```
+
+The sidebar shows `💾 Backend: postgres` to confirm the active backend.
+
+### Refreshing data (PostgreSQL)
+
+Whenever `iris_data_dict.xlsx` changes, re-run the import script. Only the read-only `dict_*` tables are touched — user data (translations, tags, metadata, changelog, usage log) is never modified:
+
+```bash
+python import_xlsx.py --drop
+```
+
+### Switching back to file backend
+
+Change `backend = "file"` in `secrets.toml` and restart. The JSON files continue to work independently of the database.
+
+### PostgreSQL table layout
+
+| Table | Type | Contents |
+|---|---|---|
+| `dict_tables` | read-only | From `sql_tables` sheet |
+| `dict_fields` | read-only | From `sql_fields` sheet |
+| `dict_fk` | read-only | From `fk_relationships` sheet |
+| `dict_classes` | read-only | From `classes` sheet |
+| `dict_members` | read-only | From `members` sheet |
+| `translations` | writable | Thai field descriptions |
+| `table_tags` | writable | Tags per table |
+| `table_metadata` | writable | Governance metadata per table |
+| `changelog` | writable | Audit log (capped at 1,000 rows) |
+| `usage_log` | writable | Usage events, JSONB details (capped at 10,000 rows) |
+
+---
+
 ## Configuration
 
 Copy the example config and edit as needed:
@@ -401,9 +491,9 @@ cp .streamlit/config.toml.example .streamlit/config.toml
 
 ---
 
-## Local data files
+## Local data files (file backend)
 
-These files are git-ignored and created automatically by the app:
+These files are git-ignored and created automatically by the app when `backend = "file"`:
 
 | File | Created by | Contents |
 |---|---|---|
@@ -419,17 +509,20 @@ These files are git-ignored and created automatically by the app:
 
 ```
 app.py                        # Streamlit application (~3000 lines)
+storage.py                    # Unified storage layer — file and postgres backends
+models.py                     # SQLAlchemy table definitions (postgres backend)
+import_xlsx.py                # CLI script: import xlsx → PostgreSQL dict_* tables
 requirements.txt              # Python dependencies
 Create_JSON.ipynb             # Notebook: xlsx → JSON export
 iris_data_dict.xlsx           # Source data (5 sheets)
 .streamlit/
   config.toml.example         # Server config template
   config.toml                 # Local config (git-ignored)
-  secrets.toml.example        # Admin passcode template
-  secrets.toml                # Admin passcode (git-ignored)
-translations.json             # Thai descriptions (git-ignored, auto-created)
-tags.json                     # Table tags (git-ignored, auto-created)
-metadata.json                 # Table governance metadata (git-ignored, auto-created)
-changelog.json                # Audit log (git-ignored, auto-created)
-usage_log.json                # Usage events (git-ignored, auto-created)
+  secrets.toml.example        # Admin passcode + backend config template
+  secrets.toml                # Local secrets — backend, database_url (git-ignored)
+translations.json             # Thai descriptions (file backend; git-ignored, auto-created)
+tags.json                     # Table tags (file backend; git-ignored, auto-created)
+metadata.json                 # Table governance metadata (file backend; git-ignored, auto-created)
+changelog.json                # Audit log (file backend; git-ignored, auto-created)
+usage_log.json                # Usage events (file backend; git-ignored, auto-created)
 ```

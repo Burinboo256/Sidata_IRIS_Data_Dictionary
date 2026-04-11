@@ -15,11 +15,76 @@ Two separate tools sharing the same data source (`iris_data_dict.xlsx`):
 streamlit run app.py
 ```
 
-Dependencies: `streamlit pandas pyvis openpyxl plotly`
+Dependencies: `streamlit pandas openpyxl plotly sqlalchemy psycopg2-binary`
+(The SQLAlchemy/psycopg2 packages are only used when `backend = "postgres"`.)
 
 Server config lives in `.streamlit/config.toml` (git-ignored; copy from `.streamlit/config.toml.example`). Set `address = "0.0.0.0"` — not a specific IP — so both localhost and network access work.
 
 Admin passcode lives in `.streamlit/secrets.toml` (git-ignored; copy from `.streamlit/secrets.toml.example`). Falls back to `"admin1234"` if not set.
+
+## Storage layer (`storage.py`)
+
+All persistence is routed through `storage.py`. `app.py` never reads/writes files or databases directly — it only calls functions imported from `storage`.
+
+### Backend switching
+
+Set `backend` in `.streamlit/secrets.toml`:
+
+```toml
+backend = "file"      # default — flat JSON files, zero setup
+backend = "postgres"  # PostgreSQL via SQLAlchemy
+database_url = "postgresql://user:pass@host:5432/iris_dict"
+```
+
+`storage.BACKEND` is detected once at module import time. The sidebar shows `💾 Backend: file` (or `postgres`) so you can confirm which backend is active.
+
+### File backend (default)
+
+All mutable state lives in JSON files in the project root:
+
+| File | Content |
+|---|---|
+| `translations.json` | Thai descriptions `{class_name: {field: text}}` |
+| `tags.json` | Tags per table `{table_name: [tag, ...]}` |
+| `metadata.json` | Governance metadata per table |
+| `changelog.json` | Audit log list (capped at 1 000 entries) |
+| `usage_log.json` | Usage events list (capped at 10 000 entries) |
+
+These files are git-ignored (live state only). `iris_data_dict.xlsx` is the read-only data source and is committed.
+
+### PostgreSQL backend
+
+Requires `sqlalchemy>=2.0` and `psycopg2-binary>=2.9`. Tables are defined in `models.py` and created by calling `storage.init_db()` (done automatically by `import_xlsx.py`).
+
+**Import data from xlsx:**
+
+```bash
+python import_xlsx.py --xlsx iris_data_dict.xlsx
+# --db   override the connection URL (else reads secrets.toml / DATABASE_URL env var)
+# --drop truncate all dict_* tables before import (clean re-import)
+```
+
+**Tables created:**
+
+| Table | Purpose |
+|---|---|
+| `dict_tables` | Mirrors `sql_tables` sheet |
+| `dict_fields` | Mirrors `sql_fields` sheet |
+| `dict_fk` | Mirrors `fk_relationships` sheet |
+| `dict_classes` | Mirrors `classes` sheet |
+| `dict_members` | Mirrors `members` sheet |
+| `translations` | Thai descriptions (composite PK `class_name, field_name`) |
+| `table_tags` | Tags (composite PK `table_name, tag`) |
+| `table_metadata` | Governance metadata (PK `table_name`) |
+| `changelog` | Audit log (serial ID, capped in app) |
+| `usage_log` | Usage events (serial ID, JSONB `details`, capped in app) |
+
+### Adding a new persistence operation
+
+1. Add `_file_*` and `_pg_*` implementations in `storage.py`.
+2. Add a public dispatcher function that calls the right one based on `BACKEND`.
+3. Import the public function in `app.py`.
+4. Never call file I/O or SQLAlchemy directly from `app.py`.
 
 ## app.py architecture
 
@@ -48,7 +113,7 @@ The `fk` dataframe has a `resolve_status` column; always filter `fk[fk["resolve_
 def nav(page: str, table: str = None): ...
 ```
 
-`st.session_state.page` drives which page block renders. Valid values: `"home"`, `"search"`, `"browse"`, `"detail"`, `"graph"`, `"analytics"`, `"changelog"`, `"usage"`. The `browse` and `detail` pages share one `elif` branch.
+`st.session_state.page` drives which page block renders. Valid values: `"home"`, `"search"`, `"browse"`, `"detail"`, `"analytics"`, `"changelog"`, `"usage"`. The `browse` and `detail` pages share one `elif` branch.
 
 URL deep-linking is handled at the top of every render cycle via `st.query_params["table"]`.
 
@@ -65,9 +130,6 @@ ADMIN_PASSCODE  # read from st.secrets["admin_passcode"], fallback "admin1234"
 
 | Function | Purpose |
 |---|---|
-| `collect_graph_data(center, depth, fk_df, tables_df)` | BFS over resolved FKs → `(nodes_dict, edges_list)`. Cached. Shared by pyvis and Mermaid graph renderers. |
-| `build_pyvis_html(center, nodes_dict, edges)` | Renders pyvis network to HTML string via a temp file. On failure returns error HTML with a Refresh button. |
-| `build_mermaid_html(center, nodes_dict, edges, direction, group_modules)` | Mermaid flowchart for the Graph page. Returns `(html, code)`. On failure returns `(error_html, "# error: ...")`. |
 | `_module_mermaid_html(mermaid_code)` | Wraps raw Mermaid code in the full HTML shell for the Module Dependency Map. Returns `html`. |
 | `build_module_mermaid(dep_counts, direction, collapse_bidir, center_module)` | Builds Mermaid code + calls `_module_mermaid_html`. Returns `(html, code)`. |
 | `build_er_mermaid(table_names, include_fields, max_fields, cross_module, direction)` | Mermaid `erDiagram` for the FK Diagram tab and Analytics → ER Diagram. Returns `(html, code)`. On failure returns `(error_html, "# error: ...")`. |
@@ -118,7 +180,7 @@ Each table detail page has **five** tabs:
 1. **📋 Schema** — fields, FK references, incoming refs, parameters, triggers
 2. **⚙️ SQL Builder** — generate SELECT; IRIS arrow-syntax (`->`) examples for FK and `_DR` display fields
 3. **🇹🇭 Thai Descriptions** — `st.data_editor` saving to `translations.json`
-4. **📐 FK Diagram** — renderer toggle (`fk_renderer_{tbl_name}`): **Mermaid** (`build_er_mermaid`) or **Interactive** (`build_cytoscape_html`); adjustable entity limit slider (default 25); Split view (Mermaid only) shows Outgoing/Incoming side-by-side
+4. **📐 FK Diagram** — renderer toggle (`fk_renderer_{tbl_name}`): **Mermaid** (`build_er_mermaid`) or **Interactive** (`build_cytoscape_html`); entity limit slider up to 250 (default 25); module filter multiselect (applies to both renderers); cross-module refs checkbox (Mermaid only); Split view (Mermaid only) shows Outgoing/Incoming side-by-side
 5. **🔗 Lineage** — column-level upstream/downstream FK paths with MS SQL types
 
 Tab selection is persisted across `st.rerun()` calls via a `localStorage` JS snippet injected after `st.tabs(...)`, keyed to the table name.
@@ -132,17 +194,22 @@ Tab selection is persisted across `st.rerun()` calls via a `localStorage` JS sni
 
 ### Persistence helpers
 
-| Function | File | Purpose |
-|---|---|---|
-| `load_translations()` / `save_translations(data)` | `translations.json` | Thai field descriptions `{class_name: {field: text}}` |
-| `load_tags()` / `save_tags(data)` | `tags.json` | Tag lists per table `{table: [tag, ...]}` |
-| `load_metadata()` / `save_metadata(data)` | `metadata.json` | Governance metadata per table (owner, steward, cert, etc.) |
-| `load_changelog()` / `append_changelog(action, table, details)` | `changelog.json` | Audit log; capped at 1,000 entries |
-| `load_usage_log()` / `log_event(event, details)` | `usage_log.json` | Usage events; capped at 10,000 entries |
+All functions below are imported from `storage.py` (not defined inline in `app.py`):
 
-**Error handling contract for persistence helpers:**
-- All `load_*` functions catch `json.JSONDecodeError` and `OSError` and return an empty default — a corrupted file never crashes the app.
-- All `save_*` functions catch `OSError` and call `st.warning(...)` — a disk/permission error is surfaced to the user but does not crash the render cycle.
+| Function | Purpose |
+|---|---|
+| `load_translations()` / `save_translations(data)` | Thai field descriptions `{class_name: {field: text}}` |
+| `load_tags()` / `save_tags(data)` | Tag lists per table `{table: [tag, ...]}` |
+| `load_metadata()` / `save_metadata(data)` | Governance metadata per table (owner, steward, cert, etc.) |
+| `load_changelog()` / `append_changelog(action, table, details)` | Audit log; capped at 1,000 entries |
+| `clear_changelog()` | Delete all changelog entries (TRUNCATE for postgres, write `[]` for file) |
+| `load_usage_log()` / `log_event(event, details)` | Usage events; capped at 10,000 entries |
+| `load_data()` | Load all five xlsx/postgres sheets; returns `(tables, fields, fk, classes, members)` |
+| `BACKEND` | String constant `"file"` or `"postgres"` — detected once at import |
+
+**Error handling contract:**
+- All `load_*` functions return an empty default on any read error — a corrupted file or DB failure never crashes the app.
+- All `save_*` functions call `st.warning(...)` on error — surfaced to the user but never crashes the render cycle.
 - `log_event` and `append_changelog` use a fully silent `except Exception: pass` — logging must never take the app down.
 
 ### Tags and metadata
