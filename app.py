@@ -27,6 +27,7 @@ TRANSLATIONS_PATH = "translations.json"
 TAGS_PATH = "tags.json"
 CHANGELOG_PATH = "changelog.json"
 METADATA_PATH = "metadata.json"
+USAGE_LOG_PATH = "usage_log.json"
 MAX_GRAPH_NODES = 60
 
 PREDEFINED_TAGS = ["PII", "financial", "deprecated", "master-data", "staging", "lookup", "audit", "critical"]
@@ -425,6 +426,24 @@ def load_metadata() -> dict:
 def save_metadata(data: dict):
     with open(METADATA_PATH, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def load_usage_log() -> list:
+    if os.path.exists(USAGE_LOG_PATH):
+        with open(USAGE_LOG_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return []
+
+
+def log_event(event: str, details: dict = None):
+    log = load_usage_log()
+    log.append({
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "event": event,
+        "details": details or {},
+    })
+    with open(USAGE_LOG_PATH, "w", encoding="utf-8") as f:
+        json.dump(log[-10000:], f, ensure_ascii=False)
 
 
 def load_changelog() -> list:
@@ -937,6 +956,11 @@ if "tags" not in st.session_state:
 if "metadata" not in st.session_state:
     st.session_state.metadata = load_metadata()
 
+# Log once per browser session
+if "session_logged" not in st.session_state:
+    st.session_state.session_logged = True
+    log_event("session_start")
+
 # ─── URL deep linking ─────────────────────────────────────────────────────────
 # On first load, honour ?table=TABLE_NAME in the URL.
 _url_table = st.query_params.get("table", "")
@@ -970,6 +994,18 @@ def nav(page: str, table: str = None):
     st.rerun()
 
 
+# ─── Usage event logging ──────────────────────────────────────────────────────
+_cur_page = st.session_state.page
+if st.session_state.get("_last_logged_page") != _cur_page:
+    st.session_state["_last_logged_page"] = _cur_page
+    log_event("page_view", {"page": _cur_page})
+
+if _cur_page == "detail" and st.session_state.selected_table:
+    _cur_tbl = st.session_state.selected_table
+    if st.session_state.get("_last_logged_table") != _cur_tbl:
+        st.session_state["_last_logged_table"] = _cur_tbl
+        log_event("table_view", {"table": _cur_tbl})
+
 # ─── Sidebar ─────────────────────────────────────────────────────────────────
 
 with st.sidebar:
@@ -983,6 +1019,7 @@ with st.sidebar:
         "graph":     "🕸️  Graph",
         "analytics": "📊  Analytics",
         "changelog": "📋  Changelog",
+        "usage":     "📈  Usage Stats",
     }
     for pid, label in pages.items():
         is_active = st.session_state.page == pid or (
@@ -1063,6 +1100,10 @@ elif st.session_state.page == "search":
         "Search", placeholder="e.g. vendor, patient, ราคา, invoice amount",
         label_visibility="collapsed",
     )
+
+    if query and query != st.session_state.get("_last_logged_query"):
+        st.session_state["_last_logged_query"] = query
+        log_event("search", {"query": query})
 
     # ── Advanced Filters ──────────────────────────────────────────────────────
     with st.expander("🔍 Advanced Filters", expanded=False):
@@ -2418,6 +2459,157 @@ elif st.session_state.page == "analytics":
                 st.code(er_code, language="text")
         else:
             st.info("Select a module, table, or custom set above to generate the diagram.")
+
+# ─── USAGE STATS ─────────────────────────────────────────────────────────────
+
+elif st.session_state.page == "usage":
+    t = _theme()
+    st.title("📈 Usage Stats")
+    st.markdown("Usage events recorded from this browser session and all previous sessions.")
+
+    raw_log = load_usage_log()
+
+    if not raw_log:
+        st.info("No usage data yet. Start browsing to record events.")
+    else:
+        log_df = pd.DataFrame(raw_log)
+        log_df["timestamp"] = pd.to_datetime(log_df["timestamp"])
+        log_df["date"] = log_df["timestamp"].dt.date
+
+        sessions  = log_df[log_df["event"] == "session_start"]
+        pviews    = log_df[log_df["event"] == "page_view"]
+        tviews    = log_df[log_df["event"] == "table_view"]
+        searches  = log_df[log_df["event"] == "search"]
+
+        # ── Summary metrics
+        mc1, mc2, mc3, mc4 = st.columns(4)
+        mc1.metric("Sessions", f"{len(sessions):,}")
+        mc2.metric("Page Views", f"{len(pviews):,}")
+        mc3.metric("Table Views", f"{len(tviews):,}")
+        mc4.metric("Searches", f"{len(searches):,}")
+
+        st.markdown("---")
+
+        chart_col1, chart_col2 = st.columns(2)
+
+        # ── Sessions per day (last 30 days)
+        with chart_col1:
+            st.subheader("Sessions per Day")
+            if not sessions.empty:
+                sess_by_day = (
+                    sessions.groupby("date").size()
+                    .reset_index(name="count")
+                    .sort_values("date")
+                    .tail(30)
+                )
+                fig_sess = px.bar(
+                    sess_by_day, x="date", y="count",
+                    labels={"date": "Date", "count": "Sessions"},
+                    color_discrete_sequence=["#4c6ef5"],
+                )
+                fig_sess.update_layout(
+                    paper_bgcolor=t["plotly_bg"], plot_bgcolor=t["plotly_bg"],
+                    font=dict(color=t["plotly_font"]),
+                    margin=dict(l=10, r=10, t=10, b=10), height=260,
+                )
+                st.plotly_chart(fig_sess, use_container_width=True)
+            else:
+                st.info("No session data yet.")
+
+        # ── Feature usage (page_view breakdown)
+        with chart_col2:
+            st.subheader("Feature Usage")
+            if not pviews.empty:
+                page_counts = (
+                    pviews["details"].apply(lambda d: d.get("page", "unknown"))
+                    .value_counts().reset_index()
+                )
+                page_counts.columns = ["Page", "Views"]
+                fig_pages = px.pie(
+                    page_counts, names="Page", values="Views",
+                    color_discrete_sequence=px.colors.qualitative.Set3,
+                    hole=0.4,
+                )
+                fig_pages.update_layout(
+                    paper_bgcolor=t["plotly_bg"],
+                    font=dict(color=t["plotly_font"]),
+                    margin=dict(l=10, r=10, t=10, b=10), height=260,
+                    showlegend=True,
+                )
+                st.plotly_chart(fig_pages, use_container_width=True)
+            else:
+                st.info("No page view data yet.")
+
+        st.markdown("---")
+
+        chart_col3, chart_col4 = st.columns(2)
+
+        # ── Top 15 tables viewed
+        with chart_col3:
+            st.subheader("Top Tables Viewed")
+            if not tviews.empty:
+                tbl_counts = (
+                    tviews["details"].apply(lambda d: d.get("table", "unknown"))
+                    .value_counts().head(15).reset_index()
+                )
+                tbl_counts.columns = ["Table", "Views"]
+                fig_tbl = px.bar(
+                    tbl_counts, x="Views", y="Table", orientation="h",
+                    color_discrete_sequence=["#6fcf97"],
+                )
+                fig_tbl.update_layout(
+                    paper_bgcolor=t["plotly_bg"], plot_bgcolor=t["plotly_bg"],
+                    font=dict(color=t["plotly_font"]),
+                    yaxis=dict(autorange="reversed"),
+                    margin=dict(l=10, r=10, t=10, b=10),
+                    height=max(260, len(tbl_counts) * 26),
+                )
+                st.plotly_chart(fig_tbl, use_container_width=True)
+            else:
+                st.info("No table view data yet.")
+
+        # ── Top searches
+        with chart_col4:
+            st.subheader("Top Searches")
+            if not searches.empty:
+                q_counts = (
+                    searches["details"].apply(lambda d: d.get("query", ""))
+                    .value_counts().head(15).reset_index()
+                )
+                q_counts.columns = ["Query", "Count"]
+                fig_q = px.bar(
+                    q_counts, x="Count", y="Query", orientation="h",
+                    color_discrete_sequence=["#f7a96f"],
+                )
+                fig_q.update_layout(
+                    paper_bgcolor=t["plotly_bg"], plot_bgcolor=t["plotly_bg"],
+                    font=dict(color=t["plotly_font"]),
+                    yaxis=dict(autorange="reversed"),
+                    margin=dict(l=10, r=10, t=10, b=10),
+                    height=max(260, len(q_counts) * 26),
+                )
+                st.plotly_chart(fig_q, use_container_width=True)
+            else:
+                st.info("No search data yet.")
+
+        # ── Recent activity
+        st.markdown("---")
+        st.subheader("Recent Activity")
+        recent = log_df.sort_values("timestamp", ascending=False).head(50)
+        recent_disp = recent[["timestamp", "event", "details"]].copy()
+        recent_disp["details"] = recent_disp["details"].apply(
+            lambda d: ", ".join(f"{k}: {v}" for k, v in d.items()) if d else ""
+        )
+        recent_disp.columns = ["Timestamp", "Event", "Details"]
+        st.dataframe(recent_disp, width="stretch", hide_index=True)
+
+        # ── Clear
+        st.markdown("---")
+        if st.button("🗑️ Clear usage log", type="secondary", key="usage_clear"):
+            with open(USAGE_LOG_PATH, "w", encoding="utf-8") as f:
+                json.dump([], f)
+            st.success("Usage log cleared.")
+            st.rerun()
 
 # ─── CHANGELOG ───────────────────────────────────────────────────────────────
 
