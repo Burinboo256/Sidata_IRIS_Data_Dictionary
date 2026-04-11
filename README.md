@@ -30,6 +30,7 @@ Built with **Streamlit** and reads directly from `iris_data_dict.xlsx`.
 | **Analytics** | Module Dependency Map, Hub Tables, Orphan Tables, ER Diagram (multi-table scope) |
 | **Usage Stats** | Track sessions, page views, table views, and searches; charts for sessions/day, feature usage, top tables, and top searches |
 | **Dark / Light mode** | Toggle between dark and light themes from the sidebar |
+| **Diagram export** | Download any Mermaid diagram (FK Diagram, ER Diagram, Graph, Module Dependency) as **SVG** or **PNG** |
 
 ---
 
@@ -234,6 +235,8 @@ Controls: Outgoing+Incoming / Outgoing only / Incoming only · show/hide fields 
 
 For hub tables with many connections the diagram is capped at 25 entities; switch to "Outgoing only" or "Incoming only" to see each side in full.
 
+**Export:** After the diagram renders, **⬇ SVG** and **⬇ PNG** buttons appear above the diagram. SVG is vector and always works; PNG uses canvas rendering (2× resolution).
+
 ---
 
 ## Analytics page
@@ -246,6 +249,8 @@ For hub tables with many connections the diagram is capped at 25 entities; switc
 | **ER Diagram** | Multi-table ER diagram — scope by module, 1-hop from a table, or custom selection (up to 20 tables) |
 
 > **Note — Mermaid rendering:** All diagrams (ER Diagram, FK Diagram, Module Dependency Map, Graph) use `mermaid.render()` with `offsetWidth` polling to defer rendering until the tab is visible. This avoids a Streamlit hidden-tab issue where Mermaid fails to compute SVG geometry inside a `display:none` container. Diagrams render automatically as soon as their tab is opened.
+
+> **Diagram export:** All Mermaid diagrams (FK Diagram, ER Diagram, Graph, Module Dependency Map) show **⬇ SVG** and **⬇ PNG** download buttons once rendered. SVG is lossless vector; PNG is 2× resolution raster. For flowcharts with HTML labels, PNG may require a browser that permits canvas cross-origin SVG — SVG always works as a fallback.
 
 ---
 

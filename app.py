@@ -352,9 +352,19 @@ def build_mermaid_html(
     font-family: 'Segoe UI', sans-serif;
   }}
   #diagram svg {{ max-width: 100% !important; height: auto; }}
+  .dl-btn {{
+    padding: 4px 11px; border: 1px solid {t["border"]}; border-radius: 4px;
+    cursor: pointer; font-size: 12px; background: {t["card_bg"]}; color: {t["text"]};
+    margin-right: 6px;
+  }}
+  .dl-btn:hover {{ opacity: 0.8; }}
 </style>
 </head>
 <body>
+<div id="btn-bar" style="display:none; margin-bottom:8px">
+  <button class="dl-btn" id="btn-svg">&#11015; SVG</button>
+  <button class="dl-btn" id="btn-png">&#11015; PNG</button>
+</div>
 <div id="diagram"></div>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <script>
@@ -365,6 +375,7 @@ mermaid.initialize({{
   securityLevel: "loose"
 }});
 var _done = false;
+var _svgStr = "";
 var _code = `{_code_js}`;
 async function _render() {{
   if (_done) return;
@@ -372,13 +383,48 @@ async function _render() {{
   _done = true;
   try {{
     var r = await mermaid.render("flow-svg", _code);
-    document.getElementById("diagram").innerHTML = r.svg;
+    _svgStr = r.svg;
+    document.getElementById("diagram").innerHTML = _svgStr;
+    document.getElementById("btn-bar").style.display = "block";
   }} catch(e) {{
     document.getElementById("diagram").innerHTML =
       "<pre style='color:salmon;white-space:pre-wrap'>" + e.message + "</pre>";
   }}
 }}
 _render();
+document.getElementById("btn-svg").onclick = function() {{
+  var blob = new Blob([_svgStr], {{type: "image/svg+xml;charset=utf-8"}});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a"); a.href = url; a.download = "graph_diagram.svg";
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function() {{ URL.revokeObjectURL(url); }}, 1000);
+}};
+document.getElementById("btn-png").onclick = function() {{
+  var svgEl = document.querySelector("#diagram svg");
+  if (!svgEl) return;
+  var w = svgEl.getBoundingClientRect().width || 1200;
+  var h = svgEl.getBoundingClientRect().height || 800;
+  var scale = 2;
+  var canvas = document.createElement("canvas");
+  canvas.width = Math.round(w * scale); canvas.height = Math.round(h * scale);
+  var ctx = canvas.getContext("2d");
+  ctx.fillStyle = "{t["bg"]}"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.scale(scale, scale);
+  var img = new Image();
+  var blob = new Blob([_svgStr], {{type: "image/svg+xml;charset=utf-8"}});
+  var url = URL.createObjectURL(blob);
+  img.onload = function() {{
+    try {{
+      ctx.drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      var a = document.createElement("a");
+      a.href = canvas.toDataURL("image/png"); a.download = "graph_diagram.png";
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    }} catch(e) {{ URL.revokeObjectURL(url); alert("PNG export failed — use SVG instead."); }}
+  }};
+  img.onerror = function() {{ URL.revokeObjectURL(url); alert("PNG export failed — use SVG instead."); }};
+  img.src = url;
+}};
 </script>
 </body></html>"""
 
@@ -612,7 +658,17 @@ def _module_mermaid_html(mermaid_code: str) -> str:
   body {{ margin:0; padding:14px; background:{t["bg"]}; overflow:auto;
          font-family:'Segoe UI',sans-serif; }}
   #diagram svg {{ max-width:100% !important; height:auto; }}
+  .dl-btn {{
+    padding:4px 11px; border:1px solid {t["border"]}; border-radius:4px;
+    cursor:pointer; font-size:12px; background:{t["card_bg"]}; color:{t["text"]};
+    margin-right:6px;
+  }}
+  .dl-btn:hover {{ opacity:0.8; }}
 </style></head><body>
+<div id="btn-bar" style="display:none; margin-bottom:8px">
+  <button class="dl-btn" id="btn-svg">&#11015; SVG</button>
+  <button class="dl-btn" id="btn-png">&#11015; PNG</button>
+</div>
 <div id="diagram"></div>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <script>
@@ -622,6 +678,7 @@ mermaid.initialize({{
   securityLevel:"loose"
 }});
 var _done = false;
+var _svgStr = "";
 var _code = `{_code_js}`;
 async function _render() {{
   if (_done) return;
@@ -629,13 +686,48 @@ async function _render() {{
   _done = true;
   try {{
     var r = await mermaid.render("mod-svg", _code);
-    document.getElementById("diagram").innerHTML = r.svg;
+    _svgStr = r.svg;
+    document.getElementById("diagram").innerHTML = _svgStr;
+    document.getElementById("btn-bar").style.display = "block";
   }} catch(e) {{
     document.getElementById("diagram").innerHTML =
       "<pre style='color:salmon;white-space:pre-wrap'>" + e.message + "</pre>";
   }}
 }}
 _render();
+document.getElementById("btn-svg").onclick = function() {{
+  var blob = new Blob([_svgStr], {{type:"image/svg+xml;charset=utf-8"}});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a"); a.href = url; a.download = "module_dependency.svg";
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function() {{ URL.revokeObjectURL(url); }}, 1000);
+}};
+document.getElementById("btn-png").onclick = function() {{
+  var svgEl = document.querySelector("#diagram svg");
+  if (!svgEl) return;
+  var w = svgEl.getBoundingClientRect().width || 1200;
+  var h = svgEl.getBoundingClientRect().height || 800;
+  var scale = 2;
+  var canvas = document.createElement("canvas");
+  canvas.width = Math.round(w * scale); canvas.height = Math.round(h * scale);
+  var ctx = canvas.getContext("2d");
+  ctx.fillStyle = "{t["bg"]}"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.scale(scale, scale);
+  var img = new Image();
+  var blob = new Blob([_svgStr], {{type:"image/svg+xml;charset=utf-8"}});
+  var url = URL.createObjectURL(blob);
+  img.onload = function() {{
+    try {{
+      ctx.drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      var a = document.createElement("a");
+      a.href = canvas.toDataURL("image/png"); a.download = "module_dependency.png";
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    }} catch(e) {{ URL.revokeObjectURL(url); alert("PNG export failed — use SVG instead."); }}
+  }};
+  img.onerror = function() {{ URL.revokeObjectURL(url); alert("PNG export failed — use SVG instead."); }};
+  img.src = url;
+}};
 </script>
 </body></html>"""
 
@@ -886,7 +978,17 @@ def build_er_mermaid(
   body {{ margin:0; padding:14px; background:{t["bg"]}; overflow:auto;
          font-family:'Segoe UI',sans-serif; }}
   #diagram svg {{ max-width:100% !important; height:auto; }}
+  .dl-btn {{
+    padding:4px 11px; border:1px solid {t["border"]}; border-radius:4px;
+    cursor:pointer; font-size:12px; background:{t["card_bg"]}; color:{t["text"]};
+    margin-right:6px;
+  }}
+  .dl-btn:hover {{ opacity:0.8; }}
 </style></head><body>
+<div id="btn-bar" style="display:none; margin-bottom:8px">
+  <button class="dl-btn" id="btn-svg">&#11015; SVG</button>
+  <button class="dl-btn" id="btn-png">&#11015; PNG</button>
+</div>
 <div id="diagram"></div>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <script>
@@ -897,6 +999,7 @@ mermaid.initialize({{
   securityLevel: "loose"
 }});
 var _done = false;
+var _svgStr = "";
 var _code = `{_code_js}`;
 async function _render() {{
   if (_done) return;
@@ -904,13 +1007,48 @@ async function _render() {{
   _done = true;
   try {{
     var r = await mermaid.render("er-svg", _code);
-    document.getElementById("diagram").innerHTML = r.svg;
+    _svgStr = r.svg;
+    document.getElementById("diagram").innerHTML = _svgStr;
+    document.getElementById("btn-bar").style.display = "block";
   }} catch(e) {{
     document.getElementById("diagram").innerHTML =
       "<pre style='color:salmon;white-space:pre-wrap'>" + e.message + "</pre>";
   }}
 }}
 _render();
+document.getElementById("btn-svg").onclick = function() {{
+  var blob = new Blob([_svgStr], {{type:"image/svg+xml;charset=utf-8"}});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a"); a.href = url; a.download = "er_diagram.svg";
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function() {{ URL.revokeObjectURL(url); }}, 1000);
+}};
+document.getElementById("btn-png").onclick = function() {{
+  var svgEl = document.querySelector("#diagram svg");
+  if (!svgEl) return;
+  var w = svgEl.getBoundingClientRect().width || 1200;
+  var h = svgEl.getBoundingClientRect().height || 800;
+  var scale = 2;
+  var canvas = document.createElement("canvas");
+  canvas.width = Math.round(w * scale); canvas.height = Math.round(h * scale);
+  var ctx = canvas.getContext("2d");
+  ctx.fillStyle = "{t["bg"]}"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.scale(scale, scale);
+  var img = new Image();
+  var blob = new Blob([_svgStr], {{type:"image/svg+xml;charset=utf-8"}});
+  var url = URL.createObjectURL(blob);
+  img.onload = function() {{
+    try {{
+      ctx.drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      var a = document.createElement("a");
+      a.href = canvas.toDataURL("image/png"); a.download = "er_diagram.png";
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    }} catch(e) {{ URL.revokeObjectURL(url); alert("PNG export failed — use SVG instead."); }}
+  }};
+  img.onerror = function() {{ URL.revokeObjectURL(url); alert("PNG export failed — use SVG instead."); }};
+  img.src = url;
+}};
 </script>
 </body></html>"""
 
@@ -1694,14 +1832,22 @@ elif st.session_state.page in ("browse", "detail"):
                         st.code(sql, language="sql")
 
                         # Arrow syntax examples for reference fields
-                        ref_in_chosen = [(f, fk_map[f]) for f in chosen if f in fk_map]
+                        # Include direct FK fields AND _DR display fields mapped to their base
+                        ref_in_chosen = []
+                        for f in chosen:
+                            if f in fk_map:
+                                ref_in_chosen.append((f, fk_map[f], f))
+                            elif f.endswith("_DR") and f[:-3] in fk_map:
+                                base = f[:-3]
+                                ref_in_chosen.append((f, fk_map[base], base))
+
                         if ref_in_chosen:
-                            with st.expander("Arrow syntax examples (reference fields)"):
+                            with st.expander(f"Arrow syntax examples ({len(ref_in_chosen)} reference fields)"):
                                 st.markdown(
                                     "IRIS SQL lets you traverse object references directly "
                                     "using `->`. Click-to-copy examples below:"
                                 )
-                                for rf, target_tbl in ref_in_chosen[:10]:
+                                for chosen_field, target_tbl, arrow_field in ref_in_chosen:
                                     tgt_row = tables[tables["sql_table_name"] == target_tbl]
                                     if tgt_row.empty:
                                         continue
@@ -1711,10 +1857,13 @@ elif st.session_state.page in ("browse", "detail"):
                                         .head(4).tolist()
                                     )
                                     if tgt_fields:
-                                        arrow_parts = ", ".join(f"{rf}->{tf}" for tf in tgt_fields)
+                                        arrow_parts = ", ".join(f"{arrow_field}->{tf}" for tf in tgt_fields)
+                                        if chosen_field != arrow_field:
+                                            comment = f"-- {chosen_field} is display repr of {arrow_field} → references {target_tbl}"
+                                        else:
+                                            comment = f"-- {chosen_field} → references {target_tbl}"
                                         st.code(
-                                            f"-- {rf} references {target_tbl}\n"
-                                            f"SELECT {arrow_parts}\nFROM {tbl_name}",
+                                            f"{comment}\nSELECT {arrow_parts}\nFROM {tbl_name}",
                                             language="sql",
                                         )
 
