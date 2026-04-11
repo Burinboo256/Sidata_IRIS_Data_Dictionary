@@ -282,7 +282,7 @@ Charts shown:
 | **Top Searches** | Top 15 most-entered search queries |
 | **Recent Activity** | Last 50 events with timestamp, event type, and details |
 
-Events are stored in `usage_log.json` (capped at 10,000 most recent entries). The log can be cleared from the Usage Stats page.
+Events are stored in `usage_log.json` (capped at 10,000 most recent entries).
 
 ---
 

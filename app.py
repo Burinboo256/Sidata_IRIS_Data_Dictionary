@@ -2603,13 +2603,6 @@ elif st.session_state.page == "usage":
         recent_disp.columns = ["Timestamp", "Event", "Details"]
         st.dataframe(recent_disp, width="stretch", hide_index=True)
 
-        # ── Clear
-        st.markdown("---")
-        if st.button("🗑️ Clear usage log", type="secondary", key="usage_clear"):
-            with open(USAGE_LOG_PATH, "w", encoding="utf-8") as f:
-                json.dump([], f)
-            st.success("Usage log cleared.")
-            st.rerun()
 
 # ─── CHANGELOG ───────────────────────────────────────────────────────────────
 
