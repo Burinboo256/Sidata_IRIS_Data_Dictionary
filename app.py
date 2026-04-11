@@ -28,6 +28,13 @@ TAGS_PATH = "tags.json"
 CHANGELOG_PATH = "changelog.json"
 METADATA_PATH = "metadata.json"
 USAGE_LOG_PATH = "usage_log.json"
+
+# Pages that require admin passcode to access
+LOCKED_PAGES = {"changelog", "usage"}
+try:
+    ADMIN_PASSCODE = st.secrets["admin_passcode"]
+except (KeyError, FileNotFoundError):
+    ADMIN_PASSCODE = "admin1234"
 MAX_GRAPH_NODES = 60
 
 PREDEFINED_TAGS = ["PII", "financial", "deprecated", "master-data", "staging", "lookup", "audit", "critical"]
@@ -1081,6 +1088,7 @@ for key, default in [
     ("recently_viewed", []),
     ("analytics_tab", 0),
     ("theme", "dark"),
+    ("admin_authenticated", False),
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
@@ -1117,6 +1125,29 @@ if st.session_state.page == "detail" and st.session_state.selected_table:
     st.query_params["table"] = st.session_state.selected_table
 elif "table" in st.query_params:
     del st.query_params["table"]
+
+
+def render_admin_gate(target_page: str):
+    """Show passcode form. If correct, set admin_authenticated and rerun."""
+    t = _theme()
+    st.markdown(
+        f"<h2 style='margin-bottom:4px'>🔒 Admin Access Required</h2>"
+        f"<p style='color:{t['text']};opacity:.7'>The <b>{target_page.title()}</b> page "
+        f"is restricted to administrators.</p>",
+        unsafe_allow_html=True,
+    )
+    with st.form("admin_gate_form", clear_on_submit=True):
+        passcode = st.text_input("Passcode", type="password", placeholder="Enter admin passcode")
+        submitted = st.form_submit_button("🔓 Unlock", type="primary", use_container_width=True)
+        if submitted:
+            if passcode == ADMIN_PASSCODE:
+                st.session_state.admin_authenticated = True
+                st.rerun()
+            else:
+                st.error("Incorrect passcode.")
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.button("← Back to Home", key="admin_gate_back"):
+        nav("home")
 
 
 def nav(page: str, table: str = None):
@@ -1159,13 +1190,26 @@ with st.sidebar:
         "changelog": "📋  Changelog",
         "usage":     "📈  Usage Stats",
     }
+    _admin_ok = st.session_state.get("admin_authenticated", False)
     for pid, label in pages.items():
         is_active = st.session_state.page == pid or (
             st.session_state.page == "detail" and pid == "browse"
         )
-        if st.button(label, use_container_width=True, key=f"nav_{pid}",
+        _locked = pid in LOCKED_PAGES and not _admin_ok
+        _display = ("🔒  " if _locked else "") + label.lstrip()
+        if st.button(_display, use_container_width=True, key=f"nav_{pid}",
                      type="primary" if is_active else "secondary"):
             nav(pid)
+
+    # Admin lock/unlock controls
+    st.markdown("---")
+    if _admin_ok:
+        st.caption("🔓 Admin mode active")
+        if st.button("🔒 Lock Admin", key="lock_admin", use_container_width=True):
+            st.session_state.admin_authenticated = False
+            if st.session_state.page in LOCKED_PAGES:
+                st.session_state.page = "home"
+            st.rerun()
 
     st.markdown("---")
     st.caption(f"📊 **{len(tables):,}** tables")
@@ -1719,6 +1763,35 @@ elif st.session_state.page in ("browse", "detail"):
             tab_schema, tab_sql, tab_translate, tab_fk_er, tab_lineage = st.tabs(
                 ["📋 Schema", "⚙️ SQL Builder", "🇹🇭 Thai Descriptions", "📐 FK Diagram", "🔗 Lineage"]
             )
+
+            # Persist active tab across st.rerun() calls via localStorage + JS
+            _tab_js_key = tbl_name.replace(" ", "_").replace(".", "_")
+            components.html(f"""<script>
+(function() {{
+  var KEY = "iris_dtab_{_tab_js_key}";
+  function btns() {{
+    return window.parent.document.querySelectorAll('[data-baseweb="tab"]');
+  }}
+  function restore() {{
+    var idx = parseInt(localStorage.getItem(KEY) || "0");
+    if (idx === 0) return;
+    var b = btns();
+    if (b.length > idx) {{ b[idx].click(); }}
+    else {{ setTimeout(restore, 120); }}
+  }}
+  function watch() {{
+    var b = btns();
+    if (!b.length) {{ setTimeout(watch, 120); return; }}
+    b.forEach(function(btn, i) {{
+      btn.addEventListener("click", function() {{
+        localStorage.setItem(KEY, i.toString());
+      }});
+    }});
+    restore();
+  }}
+  watch();
+}})();
+</script>""", height=0)
 
             # ── TAB 1: Schema ────────────────────────────────────────────────
 
@@ -2673,6 +2746,9 @@ elif st.session_state.page == "analytics":
 # ─── USAGE STATS ─────────────────────────────────────────────────────────────
 
 elif st.session_state.page == "usage":
+    if not st.session_state.get("admin_authenticated", False):
+        render_admin_gate("usage stats")
+        st.stop()
     t = _theme()
     st.title("📈 Usage Stats")
     st.markdown("Usage events recorded from this browser session and all previous sessions.")
@@ -2817,6 +2893,9 @@ elif st.session_state.page == "usage":
 # ─── CHANGELOG ───────────────────────────────────────────────────────────────
 
 elif st.session_state.page == "changelog":
+    if not st.session_state.get("admin_authenticated", False):
+        render_admin_gate("changelog")
+        st.stop()
     st.title("📋 Changelog")
     st.markdown(
         "Audit log of all changes made through this tool — Thai translations saved, "

@@ -31,6 +31,7 @@ Built with **Streamlit** and reads directly from `iris_data_dict.xlsx`.
 | **Usage Stats** | Track sessions, page views, table views, and searches; charts for sessions/day, feature usage, top tables, and top searches |
 | **Dark / Light mode** | Toggle between dark and light themes from the sidebar |
 | **Diagram export** | Download any Mermaid diagram (FK Diagram, ER Diagram, Graph, Module Dependency) as **SVG** or **PNG** |
+| **Admin lock** | Changelog and Usage Stats pages are passcode-protected; admin mode unlocks them for the session |
 
 ---
 
@@ -46,8 +47,8 @@ Quick reference for where to find every feature in the app:
 | 📁 Browse | Sidebar → **Browse** (filter by module, name, tag, and certification; click any row to open detail) |
 | 🕸️ Graph | Sidebar → **Graph** (interactive network or Mermaid flowchart, 1–2 hops) |
 | 📊 Analytics | Sidebar → **Analytics** (Module Dependency Map, Hub Tables, Orphan Tables, ER Diagram) |
-| 📋 Changelog | Sidebar → **Changelog** (audit log of tag, translation, and metadata changes) |
-| 📈 Usage Stats | Sidebar → **Usage Stats** (sessions, page views, top tables, top searches) |
+| 📋 Changelog | Sidebar → **Changelog** 🔒 *(requires admin passcode)* |
+| 📈 Usage Stats | Sidebar → **Usage Stats** 🔒 *(requires admin passcode)* |
 | 🏷️ Tags | Browse → click a table → detail header → **🏷️ Manage Tags** expander |
 | 📊 Metadata | Browse → click a table → detail header → **📊 Manage Metadata** expander |
 | 📋 Schema | Browse → click a table → **1st tab "📋 Schema"** (IRIS type, MS SQL type, FK references) |
@@ -130,7 +131,7 @@ Each table detail page has five tabs:
 | **📋 Schema** | Columns with IRIS type, MS SQL type, description, and FK reference (TargetTable.PK). Outgoing and incoming FK expandable sections. |
 | **⚙️ SQL Builder** | Build `SELECT` statements; IRIS arrow-syntax examples for reference fields; ObjectScript access pattern |
 | **🇹🇭 Thai Descriptions** | Inline editor for Thai field descriptions with per-table progress bar |
-| **📐 FK Diagram** | ER diagram of 1-hop FK connections; capped at 25 entities; Outgoing / Incoming / Both filter |
+| **📐 FK Diagram** | ER diagram of FK connections; adjustable entity limit (default 25); Outgoing / Incoming / Both / Split view; SVG + PNG export |
 | **🔗 Lineage** | Column-level lineage: upstream (this table's FK fields → target table + PK) and downstream (which fields in other tables reference this table), both with MS SQL types |
 
 ### Table Tags
@@ -317,6 +318,36 @@ To regenerate `iris_data_dictionary_full.json` (used by external tools), run `Cr
 
 ---
 
+## Admin access control
+
+The **📋 Changelog** and **📈 Usage Stats** pages are passcode-protected. A 🔒 icon appears next to them in the sidebar until unlocked.
+
+### Setting your passcode
+
+Copy the example secrets file and set your own passcode:
+
+```bash
+cp .streamlit/secrets.toml.example .streamlit/secrets.toml
+```
+
+Edit `.streamlit/secrets.toml`:
+
+```toml
+admin_passcode = "your_passcode_here"
+```
+
+`secrets.toml` is git-ignored — never commit it. If no `secrets.toml` exists the app falls back to the default passcode `admin1234`.
+
+### Admin session behaviour
+
+| Action | Result |
+|---|---|
+| Click 🔒 Changelog or Usage Stats | Passcode form shown instead of page content |
+| Enter correct passcode | Admin mode active for the browser session; both pages unlocked |
+| Click **🔒 Lock Admin** in sidebar | Admin mode revoked; navigates to Home if currently on a locked page |
+
+---
+
 ## Configuration
 
 Copy the example config and edit as needed:
@@ -350,13 +381,15 @@ These files are git-ignored and created automatically by the app:
 ## Project structure
 
 ```
-app.py                        # Streamlit application (~2600 lines)
+app.py                        # Streamlit application (~2700 lines)
 requirements.txt              # Python dependencies
 Create_JSON.ipynb             # Notebook: xlsx → JSON export
 iris_data_dict.xlsx           # Source data (5 sheets)
 .streamlit/
   config.toml.example         # Server config template
   config.toml                 # Local config (git-ignored)
+  secrets.toml.example        # Admin passcode template
+  secrets.toml                # Admin passcode (git-ignored)
 translations.json             # Thai descriptions (git-ignored, auto-created)
 tags.json                     # Table tags (git-ignored, auto-created)
 metadata.json                 # Table governance metadata (git-ignored, auto-created)

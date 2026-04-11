@@ -10,6 +10,9 @@ translations.json
 # Local server config (contains machine-specific IP/port)
 .streamlit/config.toml
 
+# Admin passcode — never commit
+.streamlit/secrets.toml
+
 # Python
 __pycache__/
 *.py[cod]
