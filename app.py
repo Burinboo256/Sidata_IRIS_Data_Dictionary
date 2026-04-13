@@ -181,7 +181,12 @@ def render_banner():
     _css = """<style>
 header[data-testid="stHeader"] { display: none !important; }
 .main .block-container { padding-top: 80px !important; }
-section[data-testid="stSidebar"] > div:first-child { padding-top: 64px !important; }
+/* Push sidebar below the banner (60px) so it never overlaps */
+section[data-testid="stSidebar"] {
+    top: 60px !important;
+    height: calc(100vh - 60px) !important;
+}
+section[data-testid="stSidebar"] > div:first-child { padding-top: 16px !important; }
 .app-banner {
     position: fixed; top: 0; left: 0; right: 0; height: 60px;
     background: linear-gradient(135deg, #0c2247 0%, #163875 55%, #1b4290 100%);
