@@ -141,6 +141,241 @@ h2, h3 {{ color: #333333; }}
 
 _apply_css()
 
+# ─── Banner ───────────────────────────────────────────────────────────────────
+
+def render_banner():
+    """Render the fixed top banner: identity, search, navigation, quick actions."""
+    import base64 as _b64, os as _os, html as _he
+    from datetime import datetime as _dt, timedelta as _td
+
+    # ── Logo
+    _logo_el = '<div class="bn-logo-fb">SI</div>'
+    try:
+        with open("logo_banner.png", "rb") as _f:
+            _b = _b64.b64encode(_f.read()).decode()
+        _logo_el = '<img src="data:image/png;base64,' + _b + '" class="bn-logo" alt="Logo">'
+    except Exception:
+        pass
+
+    # ── Breadcrumb (HTML-escape table name to be safe)
+    _page = st.session_state.get("page", "home")
+    _tbl  = _he.escape(str(st.session_state.get("selected_table") or ""))
+    _crumb_map = {
+        "home":      "Home",
+        "search":    "Home &rsaquo; Search",
+        "browse":    "Home &rsaquo; Browse",
+        "detail":    "Home &rsaquo; Browse &rsaquo; " + _tbl,
+        "analytics": "Home &rsaquo; Analytics",
+        "changelog": "Home &rsaquo; Changelog",
+        "usage":     "Home &rsaquo; Usage Stats",
+    }
+    _crumb = _crumb_map.get(_page, "Home")
+
+    # ── Notification badge (changelog entries last 7 days)
+    _notif_n = 0
+    try:
+        _cutoff = (_dt.now() - _td(days=7)).strftime("%Y-%m-%d")
+        _notif_n = sum(1 for e in load_changelog() if e.get("timestamp", "") >= _cutoff)
+    except Exception:
+        pass
+    _notif_badge = (
+        '<span class="bn-notif-badge">' + str(min(_notif_n, 99)) + '</span>'
+        if _notif_n else ""
+    )
+
+    # ── Last updated
+    _last_upd = "&mdash;"
+    try:
+        _mt = _os.path.getmtime("iris_data_dict.xlsx")
+        _last_upd = _he.escape(_dt.fromtimestamp(_mt).strftime("%d %b %Y").lstrip("0"))
+    except Exception:
+        pass
+
+    # ── Filter dropdown — safe string concatenation (no f-string with user data)
+    _tag_opts = "".join(
+        '<option value="tag:' + _he.escape(t) + '">' + _he.escape(t) + '</option>'
+        for t in PREDEFINED_TAGS
+    )
+    try:
+        _mods = sorted(tables["module_name"].dropna().astype(str).unique().tolist())
+    except Exception:
+        _mods = []
+    _mod_opts = "".join(
+        '<option value="mod:' + _he.escape(m) + '">' + _he.escape(m) + '</option>'
+        for m in _mods
+    )
+
+    # ── CSS (plain string — no Python variables, no f-string escaping needed)
+    _css = """<style>
+header[data-testid="stHeader"] { display: none !important; }
+.main .block-container { padding-top: 80px !important; }
+section[data-testid="stSidebar"] > div:first-child { padding-top: 64px !important; }
+.app-banner {
+    position: fixed; top: 0; left: 0; right: 0; height: 60px;
+    background: linear-gradient(135deg, #0c2247 0%, #163875 55%, #1b4290 100%);
+    border-bottom: 2px solid #c9a84c;
+    display: flex; align-items: center; z-index: 9999;
+    padding: 0 18px; gap: 0;
+    box-shadow: 0 3px 16px rgba(0,0,0,0.45);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+.bn-left { display: flex; align-items: center; gap: 10px; min-width: 0; flex-shrink: 0; margin-right: 20px; }
+.bn-logo { height: 40px; width: auto; object-fit: contain; border-radius: 5px; flex-shrink: 0; }
+.bn-logo-fb {
+    width: 40px; height: 40px; border-radius: 8px;
+    background: linear-gradient(135deg, #c9a84c, #f0d070);
+    color: #0c2247; font-size: 15px; font-weight: 800;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.bn-title-wrap { display: flex; flex-direction: column; gap: 3px; line-height: 1; }
+.bn-app-name { color: #fff; font-size: 13.5px; font-weight: 700; white-space: nowrap; letter-spacing: 0.15px; }
+.bn-badges { display: flex; gap: 5px; align-items: center; }
+.bn-badge {
+    font-size: 9.5px; font-weight: 700; padding: 2px 7px; border-radius: 10px; letter-spacing: 0.4px;
+    background: rgba(201,168,76,0.22); color: #f0d080; border: 1px solid rgba(201,168,76,0.4);
+}
+.bn-badge-env { background: rgba(40,167,69,0.2); color: #5ccc7a; border: 1px solid rgba(40,167,69,0.35); }
+.bn-center { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 0 16px; min-width: 0; }
+.bn-search-wrap { width: 100%; max-width: 500px; position: relative; }
+.bn-search-icon {
+    position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+    color: rgba(255,255,255,0.5); font-size: 13px; pointer-events: none;
+}
+.bn-search-inp {
+    width: 100%; height: 33px; box-sizing: border-box;
+    background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 17px; color: #fff; font-size: 12.5px;
+    padding: 0 14px 0 34px; outline: none; transition: background .2s, border-color .2s;
+}
+.bn-search-inp::placeholder { color: rgba(255,255,255,0.45); }
+.bn-search-inp:focus { background: rgba(255,255,255,0.17); border-color: #c9a84c; box-shadow: 0 0 0 2px rgba(201,168,76,0.2); }
+.bn-breadcrumb {
+    font-size: 10px; color: rgba(255,255,255,0.45);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    max-width: 500px; width: 100%; text-align: center;
+}
+.bn-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; margin-left: 16px; }
+.bn-sep { width: 1px; height: 26px; background: rgba(255,255,255,0.13); flex-shrink: 0; }
+.bn-upd { font-size: 10.5px; color: rgba(255,255,255,0.45); white-space: nowrap; line-height: 1.3; text-align: right; }
+.bn-upd strong { color: rgba(255,255,255,0.78); font-weight: 600; display: block; }
+.bn-req {
+    font-size: 11px; font-weight: 600; color: #c9a84c;
+    text-decoration: none; white-space: nowrap;
+    display: flex; align-items: center; gap: 4px;
+    padding: 5px 9px; border-radius: 6px; border: 1px solid rgba(201,168,76,0.35);
+    transition: background .15s, color .15s;
+}
+.bn-req:hover { background: rgba(201,168,76,0.15); color: #f0d080; }
+.bn-filter-sel {
+    height: 28px; font-size: 11px;
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 6px; color: rgba(255,255,255,0.8);
+    padding: 0 6px; cursor: pointer; outline: none; max-width: 130px;
+    transition: border-color .15s;
+}
+.bn-filter-sel:hover, .bn-filter-sel:focus { border-color: #c9a84c; }
+.bn-filter-sel option { background: #163875; color: #fff; }
+.bn-bell {
+    position: relative; font-size: 18px; line-height: 1; padding: 3px 4px;
+    color: rgba(255,255,255,0.65); border-radius: 6px;
+    transition: color .15s, background .15s;
+    text-decoration: none; display: flex; align-items: center;
+}
+.bn-bell:hover { color: #c9a84c; background: rgba(255,255,255,0.07); }
+.bn-notif-badge {
+    position: absolute; top: -1px; right: -3px;
+    background: #e53935; color: #fff;
+    font-size: 8px; font-weight: 700; border-radius: 8px;
+    padding: 0 3.5px; min-width: 14px; height: 14px;
+    display: flex; align-items: center; justify-content: center; line-height: 1;
+}
+.bn-user { display: flex; align-items: center; gap: 7px; cursor: pointer; padding: 4px 8px; border-radius: 7px; transition: background .15s; }
+.bn-user:hover { background: rgba(255,255,255,0.08); }
+.bn-avatar {
+    width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+    background: linear-gradient(135deg, #c9a84c, #f0d080);
+    color: #0c2247; font-size: 10px; font-weight: 800;
+    display: flex; align-items: center; justify-content: center;
+}
+.bn-uname { font-size: 11.5px; color: rgba(255,255,255,0.8); white-space: nowrap; font-weight: 500; }
+</style>"""
+
+    # ── HTML body (built with concatenation — safe for any user data)
+    _html = (
+        '<div class="app-banner">'
+
+        # Left: identity
+        + '<div class="bn-left">'
+        + _logo_el
+        + '<div class="bn-title-wrap">'
+        + '<span class="bn-app-name">Siriraj Iris Data Dictionary</span>'
+        + '<div class="bn-badges">'
+        + '<span class="bn-badge">v2.0</span>'
+        + '<span class="bn-badge bn-badge-env">PROD</span>'
+        + '</div></div></div>'
+
+        # Center: search + breadcrumb
+        + '<div class="bn-center">'
+        + '<form class="bn-search-wrap" onsubmit="bnSearch(event)">'
+        + '<span class="bn-search-icon">&#128269;</span>'
+        + '<input class="bn-search-inp" type="text" id="bn-q"'
+        + ' placeholder="Search tables, fields, descriptions&#x2026;" autocomplete="off">'
+        + '</form>'
+        + '<div class="bn-breadcrumb">' + _crumb + '</div>'
+        + '</div>'
+
+        # Right: quick actions + user
+        + '<div class="bn-right">'
+
+        + '<div class="bn-upd"><strong>' + _last_upd + '</strong>Updated</div>'
+        + '<div class="bn-sep"></div>'
+
+        + '<a class="bn-req" href="https://forms.gle/2ZXk5qw24ofLPP9t5"'
+        + ' target="_blank" rel="noopener">&#9998; Request Change</a>'
+        + '<div class="bn-sep"></div>'
+
+        + '<select class="bn-filter-sel" title="Filter by tag or module"'
+        + ' onchange="bnFilter(this.value);this.selectedIndex=0;">'
+        + '<option value="" disabled selected>Filter&#x2026;</option>'
+        + '<optgroup label="Tags">' + _tag_opts + '</optgroup>'
+        + '<optgroup label="Modules">' + _mod_opts + '</optgroup>'
+        + '</select>'
+        + '<div class="bn-sep"></div>'
+
+        + '<a class="bn-bell" href="?page=changelog" title="Recent updates (last 7 days)">'
+        + '&#128276;' + _notif_badge + '</a>'
+        + '<div class="bn-sep"></div>'
+
+        + '<div class="bn-user" title="Login coming in a future release">'
+        + '<div class="bn-avatar">GU</div>'
+        + '<span class="bn-uname">Guest</span>'
+        + '</div>'
+
+        + '</div>'  # bn-right
+        + '</div>'  # app-banner
+    )
+
+    # ── JavaScript (plain string — no {{ }} escaping)
+    _js = """<script>
+function bnSearch(e){
+  e.preventDefault();
+  var q=document.getElementById("bn-q").value.trim();
+  if(!q)return;
+  var u=new URL(window.location.href);
+  u.searchParams.set("q",q);
+  window.location.href=u.toString();
+}
+function bnFilter(v){
+  if(!v)return;
+  var u=new URL(window.location.href);
+  u.searchParams.set("filter",v);
+  window.location.href=u.toString();
+}
+</script>"""
+
+    st.markdown(_css + _html + _js, unsafe_allow_html=True)
+
+
 # ─── Data loading (delegated to storage.py) ──────────────────────────────────
 
 @st.cache_data(show_spinner=False)
@@ -1227,7 +1462,35 @@ if "session_logged" not in st.session_state:
     st.session_state.session_logged = True
     log_event("session_start")
 
+# ─── Top banner ───────────────────────────────────────────────────────────────
+render_banner()
+
 # ─── URL deep linking ─────────────────────────────────────────────────────────
+# Banner search: ?q=VALUE → navigate to Search page with pre-filled query
+_bn_q = st.query_params.get("q", "")
+if _bn_q:
+    st.session_state.page = "search"
+    st.session_state["search_main"] = _bn_q
+    try:
+        del st.query_params["q"]
+    except Exception:
+        pass
+
+# Banner filter: ?filter=tag:VALUE or ?filter=mod:VALUE → navigate to Browse
+_bn_filter = st.query_params.get("filter", "")
+if _bn_filter:
+    st.session_state.page = "browse"
+    if _bn_filter.startswith("tag:"):
+        _fv = _bn_filter[4:]
+        if _fv in PREDEFINED_TAGS:
+            st.session_state["browse_tag_filter"] = _fv
+    elif _bn_filter.startswith("mod:"):
+        st.session_state.browse_module = _bn_filter[4:]
+    try:
+        del st.query_params["filter"]
+    except Exception:
+        pass
+
 # On first load, honour ?table=TABLE_NAME in the URL.
 _url_table = st.query_params.get("table", "")
 if _url_table and st.session_state.page == "home":
@@ -1401,6 +1664,7 @@ elif st.session_state.page == "search":
     query = st.text_input(
         "Search", placeholder="e.g. vendor, patient, ราคา, invoice amount",
         label_visibility="collapsed",
+        key="search_main",
     )
 
     if query and query != st.session_state.get("_last_logged_query"):
