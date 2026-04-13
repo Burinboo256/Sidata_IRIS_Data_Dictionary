@@ -20,15 +20,16 @@ from datetime import datetime
 from typing import Any
 
 import pandas as pd
-
-# ─── Backend detection ────────────────────────────────────────────────────────
-
-EXCEL_PATH       = "iris_data_dict.xlsx"
-TRANSLATIONS_PATH = "translations.json"
-TAGS_PATH        = "tags.json"
-CHANGELOG_PATH   = "changelog.json"
-METADATA_PATH    = "metadata.json"
-USAGE_LOG_PATH   = "usage_log.json"
+from config import (
+    EXCEL_FILE       as EXCEL_PATH,
+    TRANSLATIONS_FILE as TRANSLATIONS_PATH,
+    TAGS_FILE        as TAGS_PATH,
+    CHANGELOG_FILE   as CHANGELOG_PATH,
+    METADATA_FILE    as METADATA_PATH,
+    USAGE_LOG_FILE   as USAGE_LOG_PATH,
+    MAX_CHANGELOG_ENTRIES,
+    MAX_USAGE_LOG_ENTRIES,
+)
 
 def _detect_backend() -> str:
     """Read backend from st.secrets; fall back to 'file' on any error."""
@@ -329,7 +330,7 @@ def _pg_load_changelog() -> list:
             rows = conn.execute(
                 text(
                     "SELECT timestamp, action, table_name, details "
-                    "FROM changelog ORDER BY id DESC LIMIT 1000"
+                    f"FROM changelog ORDER BY id DESC LIMIT {MAX_CHANGELOG_ENTRIES}"
                 )
             ).fetchall()
         return [
@@ -361,7 +362,7 @@ def _pg_append_changelog(action: str, table: str, details: str) -> None:
             conn.execute(
                 text(
                     "DELETE FROM changelog WHERE id NOT IN "
-                    "(SELECT id FROM changelog ORDER BY id DESC LIMIT 1000)"
+                    f"(SELECT id FROM changelog ORDER BY id DESC LIMIT {MAX_CHANGELOG_ENTRIES})"
                 )
             )
     except Exception:
@@ -377,7 +378,7 @@ def _file_append_changelog(action: str, table: str, details: str) -> None:
             "table":     table,
             "details":   details,
         })
-        _file_save_json(CHANGELOG_PATH, log[:1000])
+        _file_save_json(CHANGELOG_PATH, log[:MAX_CHANGELOG_ENTRIES])
     except Exception:
         pass
 
@@ -404,7 +405,7 @@ def _pg_load_usage_log() -> list:
             rows = conn.execute(
                 text(
                     "SELECT timestamp, event, details "
-                    "FROM usage_log ORDER BY id DESC LIMIT 10000"
+                    f"FROM usage_log ORDER BY id DESC LIMIT {MAX_USAGE_LOG_ENTRIES}"
                 )
             ).fetchall()
         return [
@@ -435,7 +436,7 @@ def _pg_log_event(event: str, details: dict) -> None:
             conn.execute(
                 text(
                     "DELETE FROM usage_log WHERE id NOT IN "
-                    "(SELECT id FROM usage_log ORDER BY id DESC LIMIT 10000)"
+                    f"(SELECT id FROM usage_log ORDER BY id DESC LIMIT {MAX_USAGE_LOG_ENTRIES})"
                 )
             )
     except Exception:
@@ -450,7 +451,7 @@ def _file_log_event(event: str, details: dict) -> None:
             "event":     event,
             "details":   details,
         })
-        _file_save_json(USAGE_LOG_PATH, log[-10000:])
+        _file_save_json(USAGE_LOG_PATH, log[-MAX_USAGE_LOG_ENTRIES:])
     except Exception:
         pass
 

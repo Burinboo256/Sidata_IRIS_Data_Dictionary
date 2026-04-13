@@ -8,6 +8,19 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 import streamlit.components.v1 as components
+from config import (
+    APP_NAME, APP_VERSION, APP_ENV, PAGE_TITLE, PAGE_ICON, LOGO_FILE,
+    REQUEST_CHANGE_URL,
+    EXCEL_FILE,
+    PREDEFINED_TAGS, CERT_OPTIONS, UPDATE_FREQ_OPTIONS,
+    LOCKED_PAGES, ADMIN_PASSCODE_FALLBACK,
+    MAX_RECENTLY_VIEWED, NOTIFICATION_WINDOW_DAYS, MAX_CUSTOM_TAG_CHARS,
+    FK_MAX_ENTITIES_DEFAULT, FK_MAX_ENTITIES_MAX, FK_MAX_ENTITIES_STEP,
+    FK_MAX_FIELDS_DEFAULT, ER_MAX_FIELDS_DEFAULT, CYTOSCAPE_HEIGHT,
+    HUB_TOP_N_DEFAULT, MODULE_TOP_N_DEFAULT, MIN_REFS_DEFAULT,
+    COMPLETENESS_LOW_THRESHOLD,
+    DEFAULT_PAGE, DEFAULT_MODULE_FILTER, DEFAULT_THEME,
+)
 # ─── Storage backend (file or postgres — set via secrets.toml) ────────────────
 from storage import (
     load_data,
@@ -22,21 +35,18 @@ from storage import (
 # ─── Page config ─────────────────────────────────────────────────────────────
 
 st.set_page_config(
-    page_title="IRIS Data Dictionary",
-    page_icon="🗂️",
+    page_title=PAGE_TITLE,
+    page_icon=PAGE_ICON,
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
 # ─── Constants ────────────────────────────────────────────────────────────────
 
-# Pages that require admin passcode to access
-LOCKED_PAGES = {"changelog", "usage"}
 try:
     ADMIN_PASSCODE = st.secrets["admin_passcode"]
 except (KeyError, FileNotFoundError):
-    ADMIN_PASSCODE = "admin1234"
-PREDEFINED_TAGS = ["PII", "financial", "deprecated", "master-data", "staging", "lookup", "audit", "critical"]
+    ADMIN_PASSCODE = ADMIN_PASSCODE_FALLBACK
 
 TAG_COLORS = {
     "PII":         ("badge-red",    "#c00000"),
@@ -46,15 +56,12 @@ TAG_COLORS = {
     "critical":    ("badge-red",    "#c00000"),
 }
 
-CERT_OPTIONS = ["", "Certified", "Draft", "Deprecated", "Experimental"]
 CERT_COLORS = {
     "Certified":    ("badge-green",  "#1a7040"),
     "Draft":        ("badge-orange", "#b06000"),
     "Deprecated":   ("badge-red",    "#c00000"),
     "Experimental": ("badge-purple", "#6b3fbf"),
 }
-UPDATE_FREQ_OPTIONS = ["", "Real-time", "Daily", "Weekly", "Monthly", "Quarterly", "Ad-hoc"]
-
 # ─── Theme helpers ────────────────────────────────────────────────────────────
 
 def _is_dark() -> bool:
@@ -151,7 +158,7 @@ def render_banner():
     # ── Logo
     _logo_el = '<div class="bn-logo-fb">SI</div>'
     try:
-        with open("logo_banner.png", "rb") as _f:
+        with open(LOGO_FILE, "rb") as _f:
             _b = _b64.b64encode(_f.read()).decode()
         _logo_el = '<img src="data:image/png;base64,' + _b + '" class="bn-logo" alt="Logo">'
     except Exception:
@@ -160,7 +167,7 @@ def render_banner():
     # ── Notification badge (changelog entries last 7 days)
     _notif_n = 0
     try:
-        _cutoff = (_dt.now() - _td(days=7)).strftime("%Y-%m-%d")
+        _cutoff = (_dt.now() - _td(days=NOTIFICATION_WINDOW_DAYS)).strftime("%Y-%m-%d")
         _notif_n = sum(1 for e in load_changelog() if e.get("timestamp", "") >= _cutoff)
     except Exception:
         pass
@@ -172,7 +179,7 @@ def render_banner():
     # ── Last updated
     _last_upd = "&mdash;"
     try:
-        _mt = _os.path.getmtime("iris_data_dict.xlsx")
+        _mt = _os.path.getmtime(EXCEL_FILE)
         _last_upd = _he.escape(_dt.fromtimestamp(_mt).strftime("%d %b %Y").lstrip("0"))
     except Exception:
         pass
@@ -269,10 +276,10 @@ section[data-testid="stSidebar"] > div:first-child { padding-top: 16px !importan
         + '<div class="bn-left">'
         + _logo_el
         + '<div class="bn-title-wrap">'
-        + '<span class="bn-app-name">Siriraj IRIS Data Dictionary</span>'
+        + '<span class="bn-app-name">' + _he.escape(APP_NAME) + '</span>'
         + '<div class="bn-badges">'
-        + '<span class="bn-badge">v1.0</span>'
-        + '<span class="bn-badge bn-badge-env">PROD</span>'
+        + '<span class="bn-badge">' + _he.escape(APP_VERSION) + '</span>'
+        + '<span class="bn-badge bn-badge-env">' + _he.escape(APP_ENV) + '</span>'
         + '</div></div></div>'
 
         # Right: quick actions + user
@@ -281,11 +288,11 @@ section[data-testid="stSidebar"] > div:first-child { padding-top: 16px !importan
         + '<div class="bn-upd"><strong>' + _last_upd + '</strong>Updated</div>'
         + '<div class="bn-sep"></div>'
 
-        + '<a class="bn-req" href="https://forms.gle/2ZXk5qw24ofLPP9t5"'
+        + '<a class="bn-req" href="' + _he.escape(REQUEST_CHANGE_URL) + '"'
         + ' target="_blank" rel="noopener">&#9998; Request Change</a>'
         + '<div class="bn-sep"></div>'
 
-        + '<a class="bn-bell" href="?page=changelog" title="Recent updates (last 7 days)">'
+        + '<a class="bn-bell" href="?page=changelog" title="Recent changes (last ' + str(NOTIFICATION_WINDOW_DAYS) + ' days)">'
         + '&#128276;' + _notif_badge + '</a>'
         + '<div class="bn-sep"></div>'
 
@@ -1469,13 +1476,13 @@ except Exception:
 # ─── Session state ────────────────────────────────────────────────────────────
 
 for key, default in [
-    ("page", "home"),
-    ("selected_table", None),
-    ("browse_module", "All modules"),
-    ("browse_filter", ""),
-    ("recently_viewed", []),
-    ("analytics_tab", 0),
-    ("theme", "dark"),
+    ("page",               DEFAULT_PAGE),
+    ("selected_table",     None),
+    ("browse_module",      DEFAULT_MODULE_FILTER),
+    ("browse_filter",      ""),
+    ("recently_viewed",    []),
+    ("analytics_tab",      0),
+    ("theme",              DEFAULT_THEME),
     ("admin_authenticated", False),
 ]:
     if key not in st.session_state:
@@ -1509,7 +1516,7 @@ if _url_table and st.session_state.page == "home":
         if _url_table in rv:
             rv.remove(_url_table)
         rv.insert(0, _url_table)
-        st.session_state.recently_viewed = rv[:10]
+        st.session_state.recently_viewed = rv[:MAX_RECENTLY_VIEWED]
 
 # Keep the URL bar in sync with the current table.
 if st.session_state.page == "detail" and st.session_state.selected_table:
@@ -1550,7 +1557,7 @@ def nav(page: str, table: str = None):
             if table in rv:
                 rv.remove(table)
             rv.insert(0, table)
-            st.session_state.recently_viewed = rv[:10]
+            st.session_state.recently_viewed = rv[:MAX_RECENTLY_VIEWED]
     st.rerun()
 
 
@@ -1766,7 +1773,7 @@ elif st.session_state.page == "search":
             matched_tables = matched_tables[~matched_tables["sql_table_name"].isin(tbls_with_fk)]
 
         if adv_low_completeness:
-            low_tbls = {cn for cn, pct in COMPLETENESS.items() if pct < 50}
+            low_tbls = {cn for cn, pct in COMPLETENESS.items() if pct < COMPLETENESS_LOW_THRESHOLD}
             matched_tables = matched_tables[matched_tables["class_name"].isin(low_tbls)]
 
         # Apply field advanced filters
@@ -2034,7 +2041,7 @@ elif st.session_state.page in ("browse", "detail"):
                             "Or type a custom tag",
                             key=f"tag_custom_{tbl_name}",
                             placeholder="e.g. patient-data, raw, v2",
-                            max_chars=40,
+                            max_chars=MAX_CUSTOM_TAG_CHARS,
                         )
                     with cc2:
                         st.markdown("<br>", unsafe_allow_html=True)
@@ -2470,7 +2477,7 @@ elif st.session_state.page in ("browse", "detail"):
                         "Show fields", value=False, key=f"fk_er_fields_{tbl_name}"
                     )
                     fk_max_fields = st.number_input(
-                        "Max fields/table", min_value=3, max_value=30, value=6,
+                        "Max fields/table", min_value=3, max_value=30, value=FK_MAX_FIELDS_DEFAULT,
                         step=1, key=f"fk_er_maxf_{tbl_name}",
                         disabled=not fk_show_fields,
                     )
@@ -2483,8 +2490,8 @@ elif st.session_state.page in ("browse", "detail"):
                         disabled=(fk_renderer == "Interactive (Cytoscape)"),
                     )
                     fk_max_entities = st.slider(
-                        "Max entities per diagram", min_value=5, max_value=250,
-                        value=25, step=5,
+                        "Max entities per diagram", min_value=5, max_value=FK_MAX_ENTITIES_MAX,
+                        value=FK_MAX_ENTITIES_DEFAULT, step=FK_MAX_ENTITIES_STEP,
                         key=f"fk_er_maxent_{tbl_name}",
                         help="Raise this to show more tables; lower it to keep the diagram readable.",
                     )
@@ -2882,7 +2889,7 @@ elif st.session_state.page == "analytics":
                 ac1, ac2 = st.columns([2, 2])
                 with ac1:
                     min_refs = st.number_input(
-                        "Min references per edge", min_value=1, value=3,
+                        "Min references per edge", min_value=1, value=MIN_REFS_DEFAULT,
                         step=1, key="dep_min_refs",
                         help="Hide edges with fewer FK references than this threshold."
                     )
@@ -2890,7 +2897,7 @@ elif st.session_state.page == "analytics":
                     total_mods = len(all_module_names)
                     top_n_mods = st.slider(
                         "Top N modules (by connectivity)", min_value=3,
-                        max_value=total_mods, value=min(12, total_mods),
+                        max_value=total_mods, value=min(MODULE_TOP_N_DEFAULT, total_mods),
                         step=1, key="dep_top_n",
                         help="Keep only the N most-connected modules. Reduces clutter."
                     )
@@ -2947,7 +2954,7 @@ elif st.session_state.page == "analytics":
             "/ lookup tables that the rest of the system depends on."
         )
 
-        top_n = st.slider("Show top N tables", min_value=10, max_value=50, value=20, step=5, key="hub_n")
+        top_n = st.slider("Show top N tables", min_value=10, max_value=50, value=HUB_TOP_N_DEFAULT, step=5, key="hub_n")
         hub_top = HUB_DF.nlargest(top_n, "incoming").reset_index(drop=True)
 
         # Bar chart
@@ -3151,7 +3158,7 @@ elif st.session_state.page == "analytics":
         with do1:
             show_fields = st.checkbox("Show fields", value=False, key="er_show_fields")
             max_f = st.number_input(
-                "Max fields/table", min_value=3, max_value=30, value=8,
+                "Max fields/table", min_value=3, max_value=30, value=ER_MAX_FIELDS_DEFAULT,
                 step=1, key="er_max_fields",
                 disabled=not show_fields,
             )

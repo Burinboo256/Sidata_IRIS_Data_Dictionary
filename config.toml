@@ -1,0 +1,78 @@
+# config.toml — Application configuration
+# Committed to git. Do NOT put secrets here — use .streamlit/secrets.toml
+
+# ── App identity ──────────────────────────────────────────────────────────────
+[app]
+name        = "Siriraj IRIS Data Dictionary"
+version     = "v1.0"
+environment = "PROD"               # shown as green badge on banner (e.g. PROD, STAGING, DEV)
+page_title  = "IRIS Data Dictionary"
+page_icon   = "🗂️"
+logo_file   = "logo_banner.png"    # relative to project root; falls back to "SI" text badge
+
+[app.links]
+request_change_url = "https://forms.gle/2ZXk5qw24ofLPP9t5"
+
+# ── Data source ───────────────────────────────────────────────────────────────
+[data]
+excel_file = "iris_data_dict.xlsx"
+
+# ── Storage file paths (file backend only) ────────────────────────────────────
+[storage]
+translations_file = "translations.json"
+tags_file         = "tags.json"
+changelog_file    = "changelog.json"
+metadata_file     = "metadata.json"
+usage_log_file    = "usage_log.json"
+
+# ── Capacity limits ───────────────────────────────────────────────────────────
+[limits]
+max_changelog_entries    = 1000    # oldest entries pruned beyond this
+max_usage_log_entries    = 10000   # oldest entries pruned beyond this
+max_recently_viewed      = 10      # tables shown in Home → Recently Viewed
+notification_window_days = 7       # days back for the banner bell badge count
+max_custom_tag_chars     = 40      # character limit on the custom tag text input
+
+# ── UI defaults — FK Diagram tab ─────────────────────────────────────────────
+[ui.diagram]
+fk_max_entities_default = 25       # default value for "Max entities" slider
+fk_max_entities_max     = 250      # upper bound for "Max entities" slider
+fk_max_entities_step    = 5        # step size for "Max entities" slider
+fk_max_fields_default   = 6        # default "Max fields/table" in FK Diagram tab
+er_max_fields_default   = 8        # default "Max fields/table" in Analytics ER Diagram
+cytoscape_height        = 640      # iframe height (px) for Cytoscape interactive diagrams
+
+# ── UI defaults — Analytics page ─────────────────────────────────────────────
+[ui.analytics]
+hub_top_n_default    = 20          # Hub Tables: default Top N slider value
+module_top_n_default = 12          # Module Dependency Map: default Top N modules
+min_refs_default     = 3           # Module Dependency Map: default min references per edge
+
+# ── UI defaults — Browse page ─────────────────────────────────────────────────
+[ui.browse]
+completeness_low_threshold = 50    # % below which a table is "low completeness"
+
+# ── Session state defaults ────────────────────────────────────────────────────
+[defaults]
+page          = "home"
+module_filter = "All modules"
+theme         = "dark"
+
+# ── Tags ──────────────────────────────────────────────────────────────────────
+[tags]
+predefined = [
+    "PII", "financial", "deprecated", "master-data",
+    "staging", "lookup", "audit", "critical",
+]
+
+# ── Metadata option lists ─────────────────────────────────────────────────────
+[metadata]
+cert_options = ["", "Certified", "Draft", "Deprecated", "Experimental"]
+update_freq_options = [
+    "", "Real-time", "Daily", "Weekly", "Monthly", "Quarterly", "Ad-hoc",
+]
+
+# ── Admin access ──────────────────────────────────────────────────────────────
+[admin]
+locked_pages      = ["changelog", "usage"]  # pages requiring passcode
+passcode_fallback = "admin1234"             # used only when secrets.toml has no admin_passcode
