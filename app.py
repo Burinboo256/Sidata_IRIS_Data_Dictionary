@@ -190,7 +190,10 @@ section[data-testid="stSidebar"] > div:first-child { padding-top: 64px !importan
     padding: 0 18px; gap: 0;
     box-shadow: 0 3px 16px rgba(0,0,0,0.45);
     font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    pointer-events: none;
 }
+/* Re-enable clicks only on actual interactive elements */
+.app-banner a, .app-banner button, .app-banner select, .app-banner input { pointer-events: auto; }
 .bn-left { display: flex; align-items: center; gap: 10px; min-width: 0; flex-shrink: 0; margin-right: 20px; }
 .bn-logo { height: 40px; width: auto; object-fit: contain; border-radius: 5px; flex-shrink: 0; }
 .bn-logo-fb {
