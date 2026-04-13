@@ -194,6 +194,14 @@ section[data-testid="stSidebar"] > div:first-child { padding-top: 64px !importan
 }
 /* Re-enable clicks only on actual interactive elements */
 .app-banner a, .app-banner button, .app-banner select, .app-banner input { pointer-events: auto; }
+/* Hamburger toggle button */
+.bn-toggle {
+    background: none; border: none; color: rgba(255,255,255,0.75);
+    font-size: 20px; cursor: pointer; padding: 6px 9px; border-radius: 6px;
+    line-height: 1; flex-shrink: 0; margin-right: 6px;
+    transition: color .15s, background .15s;
+}
+.bn-toggle:hover { color: #fff; background: rgba(255,255,255,0.12); }
 .bn-left { display: flex; align-items: center; gap: 10px; min-width: 0; flex-shrink: 0; margin-right: 20px; }
 .bn-logo { height: 40px; width: auto; object-fit: contain; border-radius: 5px; flex-shrink: 0; }
 .bn-logo-fb {
@@ -251,7 +259,8 @@ section[data-testid="stSidebar"] > div:first-child { padding-top: 64px !importan
     _html = (
         '<div class="app-banner">'
 
-        # Left: identity
+        # Left: hamburger toggle + identity
+        + '<button id="bn-toggle" class="bn-toggle" title="Toggle sidebar">&#9776;</button>'
         + '<div class="bn-left">'
         + _logo_el
         + '<div class="bn-title-wrap">'
@@ -285,6 +294,99 @@ section[data-testid="stSidebar"] > div:first-child { padding-top: 64px !importan
     )
 
     st.markdown(_css + _html, unsafe_allow_html=True)
+
+    # ── Sidebar toggle JS (runs in iframe → uses window.parent)
+    components.html("""<script>
+(function() {
+  var p = window.parent.document;
+
+  // ── Find Streamlit's real sidebar toggle button ──────────────────────────
+  function findToggleBtn() {
+    var sb = p.querySelector('section[data-testid="stSidebar"]');
+    var isOpen = sb && sb.getBoundingClientRect().width > 50;
+    if (isOpen) {
+      // Collapse button is the first <button> inside the sidebar
+      return p.querySelector('section[data-testid="stSidebar"] button');
+    } else {
+      // Expand button lives outside the sidebar when it's collapsed
+      return (
+        p.querySelector('[data-testid="collapsedControl"] button') ||
+        p.querySelector('[data-testid="stSidebarCollapsedControl"] button') ||
+        // Last-resort: any small button in the top-left corner of the page
+        Array.from(p.querySelectorAll('button')).find(function(b) {
+          var r = b.getBoundingClientRect();
+          return r.top < 80 && r.left < 80 && r.width > 0;
+        }) || null
+      );
+    }
+  }
+
+  function clickSidebarToggle() {
+    var btn = findToggleBtn();
+    if (btn) btn.click();
+  }
+
+  // ── Attach ☰ button on the banner ────────────────────────────────────────
+  function attachHamburger() {
+    var ham = p.getElementById('bn-toggle');
+    if (ham && !ham._bnReady) {
+      ham._bnReady = true;
+      ham.addEventListener('click', clickSidebarToggle);
+    }
+    return !!ham;
+  }
+
+  // ── Hover strip on the left edge ─────────────────────────────────────────
+  function ensureHoverStrip() {
+    if (p.getElementById('bn-edge-strip')) return;
+    var strip = p.createElement('div');
+    strip.id = 'bn-edge-strip';
+    Object.assign(strip.style, {
+      position: 'fixed', top: '60px', left: '0',
+      width: '6px', height: 'calc(100vh - 60px)',
+      zIndex: '99999', cursor: 'pointer',
+      background: 'transparent',
+      transition: 'width .18s ease, background .18s ease',
+      borderRight: '2px solid transparent',
+    });
+
+    strip.addEventListener('mouseenter', function() {
+      strip.style.width = '20px';
+      strip.style.background = 'rgba(201,168,76,0.18)';
+      strip.style.borderRight = '2px solid rgba(201,168,76,0.55)';
+      // Auto-open sidebar after 350ms hover
+      strip._hoverTimer = setTimeout(function() {
+        var sb = p.querySelector('section[data-testid="stSidebar"]');
+        var isOpen = sb && sb.getBoundingClientRect().width > 50;
+        if (!isOpen) clickSidebarToggle();
+      }, 350);
+    });
+
+    strip.addEventListener('mouseleave', function() {
+      clearTimeout(strip._hoverTimer);
+      strip.style.width = '6px';
+      strip.style.background = 'transparent';
+      strip.style.borderRight = '2px solid transparent';
+    });
+
+    strip.addEventListener('click', clickSidebarToggle);
+    p.body.appendChild(strip);
+  }
+
+  // ── Init + keep alive across Streamlit reruns ─────────────────────────────
+  function init() {
+    attachHamburger();
+    ensureHoverStrip();
+  }
+
+  init();
+  // Re-attach after each Streamlit rerun (DOM refreshes)
+  setInterval(function() {
+    if (!attachHamburger()) return; // banner not yet rendered
+    if (!p.getElementById('bn-edge-strip')) ensureHoverStrip();
+  }, 800);
+})();
+</script>""", height=0)
 
 
 # ─── Data loading (delegated to storage.py) ──────────────────────────────────
