@@ -308,21 +308,36 @@ section[data-testid="stSidebar"] > div:first-child { padding-top: 16px !importan
   // ── Find Streamlit's real sidebar toggle button ──────────────────────────
   function findToggleBtn() {
     var sb = p.querySelector('section[data-testid="stSidebar"]');
-    var isOpen = sb && sb.getBoundingClientRect().width > 50;
+    var sbW = sb ? sb.getBoundingClientRect().width : 0;
+    var isOpen = sbW > 50;
+
     if (isOpen) {
-      // Collapse button is the first <button> inside the sidebar
-      return p.querySelector('section[data-testid="stSidebar"] button');
+      // Collapse button: first visible button inside the sidebar section
+      var btns = Array.from(p.querySelectorAll('section[data-testid="stSidebar"] button'));
+      return btns.find(function(b) {
+        var r = b.getBoundingClientRect();
+        return r.width > 0 && r.height > 0;
+      }) || null;
     } else {
-      // Expand button lives outside the sidebar when it's collapsed
-      return (
+      // Expand button: Streamlit puts this outside the sidebar when collapsed.
+      // Try known data-testid selectors first, then broad position search.
+      var byId = (
         p.querySelector('[data-testid="collapsedControl"] button') ||
         p.querySelector('[data-testid="stSidebarCollapsedControl"] button') ||
-        // Last-resort: any small button in the top-left corner of the page
-        Array.from(p.querySelectorAll('button')).find(function(b) {
-          var r = b.getBoundingClientRect();
-          return r.top < 80 && r.left < 80 && r.width > 0;
-        }) || null
+        p.querySelector('[data-testid="collapsedControl"]') ||
+        p.querySelector('[data-testid="stSidebarCollapsedControl"]')
       );
+      if (byId) return byId;
+
+      // Last-resort: any visible button in the left quarter of the viewport,
+      // anywhere in the vertical range (sidebar now starts at 60px so button
+      // may be at top:60-200px).
+      return Array.from(p.querySelectorAll('button')).find(function(b) {
+        var r = b.getBoundingClientRect();
+        return r.width > 0 && r.height > 0 &&
+               r.left < window.parent.innerWidth * 0.25 &&
+               r.top < 300;
+      }) || null;
     }
   }
 
@@ -391,7 +406,7 @@ section[data-testid="stSidebar"] > div:first-child { padding-top: 16px !importan
     if (!p.getElementById('bn-edge-strip')) ensureHoverStrip();
   }, 800);
 })();
-</script>""", height=0)
+</script>""", height=1)
 
 
 # ─── Data loading (delegated to storage.py) ──────────────────────────────────
