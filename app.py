@@ -157,20 +157,6 @@ def render_banner():
     except Exception:
         pass
 
-    # ── Breadcrumb (HTML-escape table name to be safe)
-    _page = st.session_state.get("page", "home")
-    _tbl  = _he.escape(str(st.session_state.get("selected_table") or ""))
-    _crumb_map = {
-        "home":      "Home",
-        "search":    "Home &rsaquo; Search",
-        "browse":    "Home &rsaquo; Browse",
-        "detail":    "Home &rsaquo; Browse &rsaquo; " + _tbl,
-        "analytics": "Home &rsaquo; Analytics",
-        "changelog": "Home &rsaquo; Changelog",
-        "usage":     "Home &rsaquo; Usage Stats",
-    }
-    _crumb = _crumb_map.get(_page, "Home")
-
     # ── Notification badge (changelog entries last 7 days)
     _notif_n = 0
     try:
@@ -190,20 +176,6 @@ def render_banner():
         _last_upd = _he.escape(_dt.fromtimestamp(_mt).strftime("%d %b %Y").lstrip("0"))
     except Exception:
         pass
-
-    # ── Filter dropdown — safe string concatenation (no f-string with user data)
-    _tag_opts = "".join(
-        '<option value="tag:' + _he.escape(t) + '">' + _he.escape(t) + '</option>'
-        for t in PREDEFINED_TAGS
-    )
-    try:
-        _mods = sorted(tables["module_name"].dropna().astype(str).unique().tolist())
-    except Exception:
-        _mods = []
-    _mod_opts = "".join(
-        '<option value="mod:' + _he.escape(m) + '">' + _he.escape(m) + '</option>'
-        for m in _mods
-    )
 
     # ── CSS (plain string — no Python variables, no f-string escaping needed)
     _css = """<style>
@@ -243,26 +215,7 @@ button[data-testid="baseButton-headerNoPadding"] { z-index: 10001 !important; }
     background: rgba(201,168,76,0.22); color: #f0d080; border: 1px solid rgba(201,168,76,0.4);
 }
 .bn-badge-env { background: rgba(40,167,69,0.2); color: #5ccc7a; border: 1px solid rgba(40,167,69,0.35); }
-.bn-center { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 0 16px; min-width: 0; }
-.bn-search-wrap { width: 100%; max-width: 500px; position: relative; }
-.bn-search-icon {
-    position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
-    color: rgba(255,255,255,0.5); font-size: 13px; pointer-events: none;
-}
-.bn-search-inp {
-    width: 100%; height: 33px; box-sizing: border-box;
-    background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
-    border-radius: 17px; color: #fff; font-size: 12.5px;
-    padding: 0 14px 0 34px; outline: none; transition: background .2s, border-color .2s;
-}
-.bn-search-inp::placeholder { color: rgba(255,255,255,0.45); }
-.bn-search-inp:focus { background: rgba(255,255,255,0.17); border-color: #c9a84c; box-shadow: 0 0 0 2px rgba(201,168,76,0.2); }
-.bn-breadcrumb {
-    font-size: 10px; color: rgba(255,255,255,0.45);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    max-width: 500px; width: 100%; text-align: center;
-}
-.bn-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; margin-left: 16px; }
+.bn-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; margin-left: auto; }
 .bn-sep { width: 1px; height: 26px; background: rgba(255,255,255,0.13); flex-shrink: 0; }
 .bn-upd { font-size: 10.5px; color: rgba(255,255,255,0.45); white-space: nowrap; line-height: 1.3; text-align: right; }
 .bn-upd strong { color: rgba(255,255,255,0.78); font-weight: 600; display: block; }
@@ -274,15 +227,6 @@ button[data-testid="baseButton-headerNoPadding"] { z-index: 10001 !important; }
     transition: background .15s, color .15s;
 }
 .bn-req:hover { background: rgba(201,168,76,0.15); color: #f0d080; }
-.bn-filter-sel {
-    height: 28px; font-size: 11px;
-    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.18);
-    border-radius: 6px; color: rgba(255,255,255,0.8);
-    padding: 0 6px; cursor: pointer; outline: none; max-width: 130px;
-    transition: border-color .15s;
-}
-.bn-filter-sel:hover, .bn-filter-sel:focus { border-color: #c9a84c; }
-.bn-filter-sel option { background: #163875; color: #fff; }
 .bn-bell {
     position: relative; font-size: 18px; line-height: 1; padding: 3px 4px;
     color: rgba(255,255,255,0.65); border-radius: 6px;
@@ -322,16 +266,6 @@ button[data-testid="baseButton-headerNoPadding"] { z-index: 10001 !important; }
         + '<span class="bn-badge bn-badge-env">PROD</span>'
         + '</div></div></div>'
 
-        # Center: search + breadcrumb
-        + '<div class="bn-center">'
-        + '<form class="bn-search-wrap" onsubmit="bnSearch(event)">'
-        + '<span class="bn-search-icon">&#128269;</span>'
-        + '<input class="bn-search-inp" type="text" id="bn-q"'
-        + ' placeholder="Search tables, fields, descriptions&#x2026;" autocomplete="off">'
-        + '</form>'
-        + '<div class="bn-breadcrumb">' + _crumb + '</div>'
-        + '</div>'
-
         # Right: quick actions + user
         + '<div class="bn-right">'
 
@@ -340,14 +274,6 @@ button[data-testid="baseButton-headerNoPadding"] { z-index: 10001 !important; }
 
         + '<a class="bn-req" href="https://forms.gle/2ZXk5qw24ofLPP9t5"'
         + ' target="_blank" rel="noopener">&#9998; Request Change</a>'
-        + '<div class="bn-sep"></div>'
-
-        + '<select class="bn-filter-sel" title="Filter by tag or module"'
-        + ' onchange="bnFilter(this.value);this.selectedIndex=0;">'
-        + '<option value="" disabled selected>Filter&#x2026;</option>'
-        + '<optgroup label="Tags">' + _tag_opts + '</optgroup>'
-        + '<optgroup label="Modules">' + _mod_opts + '</optgroup>'
-        + '</select>'
         + '<div class="bn-sep"></div>'
 
         + '<a class="bn-bell" href="?page=changelog" title="Recent updates (last 7 days)">'
@@ -364,45 +290,6 @@ button[data-testid="baseButton-headerNoPadding"] { z-index: 10001 !important; }
     )
 
     st.markdown(_css + _html, unsafe_allow_html=True)
-
-    # ── JavaScript via components.html (executes in iframe → uses window.parent)
-    # st.markdown strips/ignores <script> tags; components.html runs inside an
-    # iframe so we can reach the main page via window.parent.
-    components.html("""<script>
-(function attach() {
-  var p = window.parent.document;
-  var form = p.querySelector('.bn-search-wrap');
-  var inp  = p.getElementById('bn-q');
-  var sel  = p.querySelector('.bn-filter-sel');
-
-  if (form && !form._bnReady) {
-    form._bnReady = true;
-    form.addEventListener('submit', function(e) {
-      e.preventDefault();
-      var q = inp ? inp.value.trim() : '';
-      if (!q) return;
-      var u = new URL(window.parent.location.href);
-      u.searchParams.set('q', q);
-      window.parent.location.href = u.toString();
-    });
-  }
-
-  if (sel && !sel._bnReady) {
-    sel._bnReady = true;
-    sel.addEventListener('change', function() {
-      var v = sel.value;
-      if (!v) return;
-      var u = new URL(window.parent.location.href);
-      u.searchParams.set('filter', v);
-      window.parent.location.href = u.toString();
-      sel.selectedIndex = 0;
-    });
-  }
-
-  // Retry until banner elements exist in parent DOM
-  if (!form || !sel) { setTimeout(attach, 300); }
-})();
-</script>""", height=0)
 
 
 # ─── Data loading (delegated to storage.py) ──────────────────────────────────
@@ -1495,31 +1382,6 @@ if "session_logged" not in st.session_state:
 render_banner()
 
 # ─── URL deep linking ─────────────────────────────────────────────────────────
-# Banner search: ?q=VALUE → navigate to Search page with pre-filled query
-_bn_q = st.query_params.get("q", "")
-if _bn_q:
-    st.session_state.page = "search"
-    st.session_state["search_main"] = _bn_q
-    try:
-        del st.query_params["q"]
-    except Exception:
-        pass
-
-# Banner filter: ?filter=tag:VALUE or ?filter=mod:VALUE → navigate to Browse
-_bn_filter = st.query_params.get("filter", "")
-if _bn_filter:
-    st.session_state.page = "browse"
-    if _bn_filter.startswith("tag:"):
-        _fv = _bn_filter[4:]
-        if _fv in PREDEFINED_TAGS:
-            st.session_state["browse_tag_filter"] = _fv
-    elif _bn_filter.startswith("mod:"):
-        st.session_state.browse_module = _bn_filter[4:]
-    try:
-        del st.query_params["filter"]
-    except Exception:
-        pass
-
 # On first load, honour ?table=TABLE_NAME in the URL.
 _url_table = st.query_params.get("table", "")
 if _url_table and st.session_state.page == "home":
