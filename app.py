@@ -210,6 +210,9 @@ def render_banner():
 header[data-testid="stHeader"] { display: none !important; }
 .main .block-container { padding-top: 80px !important; }
 section[data-testid="stSidebar"] > div:first-child { padding-top: 64px !important; }
+/* Keep sidebar BELOW the banner so the banner's left section is always visible */
+section[data-testid="stSidebar"],
+section[data-testid="stSidebar"] > div { z-index: 100 !important; }
 .app-banner {
     position: fixed; top: 0; left: 0; right: 0; height: 60px;
     background: linear-gradient(135deg, #0c2247 0%, #163875 55%, #1b4290 100%);
@@ -355,25 +358,46 @@ section[data-testid="stSidebar"] > div:first-child { padding-top: 64px !importan
         + '</div>'  # app-banner
     )
 
-    # ── JavaScript (plain string — no {{ }} escaping)
-    _js = """<script>
-function bnSearch(e){
-  e.preventDefault();
-  var q=document.getElementById("bn-q").value.trim();
-  if(!q)return;
-  var u=new URL(window.location.href);
-  u.searchParams.set("q",q);
-  window.location.href=u.toString();
-}
-function bnFilter(v){
-  if(!v)return;
-  var u=new URL(window.location.href);
-  u.searchParams.set("filter",v);
-  window.location.href=u.toString();
-}
-</script>"""
+    st.markdown(_css + _html, unsafe_allow_html=True)
 
-    st.markdown(_css + _html + _js, unsafe_allow_html=True)
+    # ── JavaScript via components.html (executes in iframe → uses window.parent)
+    # st.markdown strips/ignores <script> tags; components.html runs inside an
+    # iframe so we can reach the main page via window.parent.
+    components.html("""<script>
+(function attach() {
+  var p = window.parent.document;
+  var form = p.querySelector('.bn-search-wrap');
+  var inp  = p.getElementById('bn-q');
+  var sel  = p.querySelector('.bn-filter-sel');
+
+  if (form && !form._bnReady) {
+    form._bnReady = true;
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      var q = inp ? inp.value.trim() : '';
+      if (!q) return;
+      var u = new URL(window.parent.location.href);
+      u.searchParams.set('q', q);
+      window.parent.location.href = u.toString();
+    });
+  }
+
+  if (sel && !sel._bnReady) {
+    sel._bnReady = true;
+    sel.addEventListener('change', function() {
+      var v = sel.value;
+      if (!v) return;
+      var u = new URL(window.parent.location.href);
+      u.searchParams.set('filter', v);
+      window.parent.location.href = u.toString();
+      sel.selectedIndex = 0;
+    });
+  }
+
+  // Retry until banner elements exist in parent DOM
+  if (!form || !sel) { setTimeout(attach, 300); }
+})();
+</script>""", height=0)
 
 
 # ─── Data loading (delegated to storage.py) ──────────────────────────────────
