@@ -31,6 +31,8 @@ Built with **Streamlit** and reads directly from `iris_data_dict.xlsx`.
 | **Dark / Light mode** | Toggle between dark and light themes from the sidebar |
 | **Diagram export** | Download any Mermaid diagram (FK Diagram, ER Diagram, Module Dependency) as **SVG** or **PNG** |
 | **Admin lock** | Changelog and Usage Stats pages are passcode-protected; admin mode unlocks them for the session |
+| **Top banner** | Fixed 60 px banner: app identity (logo + name + v/env badges), last-updated date, Request Change link, notification bell (7-day changelog count), Guest avatar |
+| **Sidebar toggle** | ☰ hamburger button on the banner always visible; hover over the left-edge gold strip (below banner) for 350 ms to auto-open sidebar |
 
 ---
 
@@ -55,6 +57,8 @@ Quick reference for where to find every feature in the app:
 | 📐 FK Diagram | Browse → click a table → **4th tab "📐 FK Diagram"** (slider up to 250 entities; module filter; Split view) |
 | 🔗 Lineage | Browse → click a table → **5th tab "🔗 Lineage"** (column-level upstream/downstream FK paths) |
 | ☀️ / 🌙 Theme | Bottom of sidebar → **Light Mode / Dark Mode** toggle |
+| ☰ Sidebar toggle | Banner left edge → **☰** button, or hover the gold strip on the far left of the page |
+| ✏️ Request Change | Banner right area → **✏️ Request Change** link (Google Form) |
 
 ---
 
@@ -358,6 +362,33 @@ To regenerate `iris_data_dictionary_full.json` (used by external tools), run `Cr
 
 ---
 
+## Top banner
+
+A fixed 60 px banner at the top of every page provides quick access to key actions without touching the sidebar.
+
+| Element | Description |
+|---|---|
+| **☰ hamburger** | Toggles the sidebar open/closed — programmatically clicks Streamlit's real toggle button via `window.parent` JS |
+| **Logo** | Loaded from `logo_banner.png` in the project root; falls back to `SI` text badge if file is absent |
+| **App name + badges** | "Siriraj IRIS Data Dictionary" · `v1.0` · `PROD` — edit in `render_banner()` in `app.py` |
+| **Last Updated** | Modification timestamp of `iris_data_dict.xlsx`, shown as `DD Mon YYYY` |
+| **✏️ Request Change** | Opens the feedback Google Form in a new tab |
+| **🔔 Notification bell** | Shows a red badge with count of changelog entries from the last 7 days |
+| **GU / Guest avatar** | Placeholder for future login feature |
+
+### Left-edge hover strip
+
+A 6 px invisible strip runs along the left edge of the page (below the banner). On hover it glows gold; after 350 ms the sidebar auto-opens. Click immediately toggles it. Implemented as a `div` injected directly into the parent document via `components.html`.
+
+### Renaming the app
+
+Edit the two places in `app.py`:
+
+1. Banner title — `render_banner()`, search for `Siriraj IRIS Data Dictionary`
+2. Sidebar header — `st.markdown("## 🗂️ IRIS Data Dictionary")`
+
+---
+
 ## Admin access control
 
 The **📋 Changelog** and **📈 Usage Stats** pages are passcode-protected. A 🔒 icon appears next to them in the sidebar until unlocked.
@@ -512,7 +543,7 @@ These files are git-ignored and created automatically by the app when `backend =
 ## Project structure
 
 ```
-app.py                        # Streamlit application (~3000 lines)
+app.py                        # Streamlit application (~3200 lines)
 storage.py                    # Unified storage layer — file and postgres backends
 models.py                     # SQLAlchemy table definitions (postgres backend)
 import_xlsx.py                # CLI script: import xlsx → PostgreSQL dict_* tables

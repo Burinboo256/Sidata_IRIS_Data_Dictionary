@@ -130,6 +130,7 @@ ADMIN_PASSCODE  # read from st.secrets["admin_passcode"], fallback "admin1234"
 
 | Function | Purpose |
 |---|---|
+| `render_banner()` | Renders the fixed 60 px top banner (logo, title, badges, last-updated, Request Change, bell, Guest avatar) and injects sidebar toggle JS via `components.html`. |
 | `_module_mermaid_html(mermaid_code)` | Wraps raw Mermaid code in the full HTML shell for the Module Dependency Map. Returns `html`. |
 | `build_module_mermaid(dep_counts, direction, collapse_bidir, center_module)` | Builds Mermaid code + calls `_module_mermaid_html`. Returns `(html, code)`. |
 | `build_er_mermaid(table_names, include_fields, max_fields, cross_module, direction)` | Mermaid `erDiagram` for the FK Diagram tab and Analytics → ER Diagram. Returns `(html, code)`. On failure returns `(error_html, "# error: ...")`. |
@@ -153,9 +154,29 @@ Key design decisions:
 - **Layout tuning** — `idealEdgeLength` and `nodeRepulsion` scale up automatically when `include_fields=True` so the larger SVG cards don't overlap.
 - **`_xe(s)`** — inner helper that XML-escapes strings for safe embedding inside SVG text elements.
 
+### Top banner (`render_banner`)
+
+`render_banner()` is called once at the top of the main render cycle (after session state init). It:
+
+1. Emits CSS via `st.markdown(unsafe_allow_html=True)`:
+   - Hides Streamlit's default header (`header[data-testid="stHeader"]`)
+   - Pushes sidebar down to `top: 60px` so it never overlaps the banner
+   - Defines all `.app-banner`, `.bn-*` classes
+   - Sets `pointer-events: none` on the banner background so Streamlit's underlying toggle button remains clickable; re-enables `pointer-events: auto` on interactive children
+
+2. Emits the banner HTML via `st.markdown` (string concatenation — never f-strings with user data; `html.escape()` on all variable content)
+
+3. Injects sidebar toggle JS via `components.html(height=1)` (runs in an iframe, uses `window.parent.document` to reach the main page):
+   - Attaches a click handler to `#bn-toggle` (the ☰ hamburger button)
+   - Creates `#bn-edge-strip` — a fixed 6 px left-edge strip that glows gold on hover and auto-opens the sidebar after 350 ms
+   - `setInterval` every 800 ms re-attaches both after Streamlit reruns (which refresh the DOM)
+   - `findToggleBtn()` searches for Streamlit's real toggle button: first by `data-testid`, then by position (left 25 % of viewport, top < 300 px)
+
+**Important:** `<script>` tags inside `st.markdown()` do NOT execute — Streamlit uses `innerHTML` assignment which strips scripts. All JS must go through `components.html()`.
+
 ### Mermaid rendering
 
-All three HTML builders (`build_mermaid_html`, `_module_mermaid_html`, `build_er_mermaid`) use the same pattern:
+All Mermaid builders (`_module_mermaid_html`, `build_er_mermaid`) use the same pattern:
 
 ```javascript
 mermaid.initialize({ startOnLoad: false, ... });
