@@ -213,6 +213,11 @@ section[data-testid="stSidebar"] > div:first-child { padding-top: 64px !importan
 /* Keep sidebar BELOW the banner so the banner's left section is always visible */
 section[data-testid="stSidebar"],
 section[data-testid="stSidebar"] > div { z-index: 100 !important; }
+/* Lift the sidebar collapse/expand toggle ABOVE the banner so it stays clickable */
+div[data-testid="collapsedControl"],
+div[data-testid="stSidebarCollapsedControl"],
+section[data-testid="stSidebar"] button[kind="header"],
+button[data-testid="baseButton-headerNoPadding"] { z-index: 10001 !important; }
 .app-banner {
     position: fixed; top: 0; left: 0; right: 0; height: 60px;
     background: linear-gradient(135deg, #0c2247 0%, #163875 55%, #1b4290 100%);
