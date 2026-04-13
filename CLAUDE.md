@@ -22,6 +22,43 @@ Server config lives in `.streamlit/config.toml` (git-ignored; copy from `.stream
 
 Admin passcode lives in `.streamlit/secrets.toml` (git-ignored; copy from `.streamlit/secrets.toml.example`). Falls back to `"admin1234"` if not set.
 
+## Configuration layer (`config.toml` + `config.py`)
+
+All non-secret application parameters are centralised in `config.toml` (committed to git). `config.py` is a thin loader that reads it and exposes typed Python constants used by both `app.py` and `storage.py`.
+
+### How it works
+
+```
+config.toml  ──►  config.py (_load + _get)  ──►  APP_NAME, PREDEFINED_TAGS, …
+```
+
+- `config.py` uses `tomllib` (Python ≥ 3.11 stdlib) or `tomli` (pip install; Python 3.8–3.10).
+- If `config.toml` is missing or a key is absent, every constant falls back to a hardcoded default — the app always starts.
+- **Never put secrets in `config.toml`** — use `.streamlit/secrets.toml` for `admin_passcode` and `database_url`.
+
+### Sections in config.toml
+
+| Section | Key constants | Purpose |
+|---|---|---|
+| `[app]` | `APP_NAME`, `APP_VERSION`, `APP_ENV`, `PAGE_TITLE`, `LOGO_FILE` | Banner identity, browser tab |
+| `[app.links]` | `REQUEST_CHANGE_URL` | Banner → Request Change button |
+| `[data]` | `EXCEL_FILE` | Source xlsx path |
+| `[storage]` | `TRANSLATIONS_FILE`, `TAGS_FILE`, `CHANGELOG_FILE`, `METADATA_FILE`, `USAGE_LOG_FILE` | File backend paths |
+| `[limits]` | `MAX_CHANGELOG_ENTRIES`, `MAX_USAGE_LOG_ENTRIES`, `MAX_RECENTLY_VIEWED`, `NOTIFICATION_WINDOW_DAYS`, `MAX_CUSTOM_TAG_CHARS` | Capacity + UI limits |
+| `[ui.diagram]` | `FK_MAX_ENTITIES_DEFAULT/MAX/STEP`, `FK_MAX_FIELDS_DEFAULT`, `ER_MAX_FIELDS_DEFAULT`, `CYTOSCAPE_HEIGHT` | FK Diagram + ER Diagram slider defaults |
+| `[ui.analytics]` | `HUB_TOP_N_DEFAULT`, `MODULE_TOP_N_DEFAULT`, `MIN_REFS_DEFAULT` | Analytics page slider defaults |
+| `[ui.browse]` | `COMPLETENESS_LOW_THRESHOLD` | % threshold for "low completeness" flag |
+| `[defaults]` | `DEFAULT_PAGE`, `DEFAULT_MODULE_FILTER`, `DEFAULT_THEME` | Session state initial values |
+| `[tags]` | `PREDEFINED_TAGS` | Built-in tag list |
+| `[metadata]` | `CERT_OPTIONS`, `UPDATE_FREQ_OPTIONS` | Dropdown option lists |
+| `[admin]` | `LOCKED_PAGES`, `ADMIN_PASSCODE_FALLBACK` | Admin gate config |
+
+### Adding a new config value
+
+1. Add the key to `config.toml` under the appropriate section.
+2. Add a constant in `config.py` using `_get("section.key", default)`.
+3. Import the constant in `app.py` or `storage.py` and use it — never hardcode the value again.
+
 ## Storage layer (`storage.py`)
 
 All persistence is routed through `storage.py`. `app.py` never reads/writes files or databases directly — it only calls functions imported from `storage`.

@@ -540,16 +540,78 @@ These files are git-ignored and created automatically by the app when `backend =
 
 ---
 
+## Configuration
+
+All non-secret application parameters live in **`config.toml`** (committed to git). Edit this file to customise the app for your environment without touching Python code.
+
+```toml
+# config.toml — quick-reference sections
+
+[app]
+name        = "Siriraj IRIS Data Dictionary"   # shown in banner and browser tab
+version     = "v1.0"
+environment = "PROD"      # badge colour: PROD=green, STAGING=orange, DEV=grey (visual only)
+page_title  = "IRIS Data Dictionary"
+logo_file   = "logo_banner.png"
+
+[app.links]
+request_change_url = "https://forms.gle/..."   # banner → Request Change button
+
+[data]
+excel_file = "iris_data_dict.xlsx"
+
+[storage]                    # file paths (file backend only)
+translations_file = "translations.json"
+tags_file         = "tags.json"
+# … changelog_file, metadata_file, usage_log_file
+
+[limits]
+max_changelog_entries    = 1000
+max_usage_log_entries    = 10000
+max_recently_viewed      = 10
+notification_window_days = 7
+max_custom_tag_chars     = 40
+
+[ui.diagram]                 # FK Diagram + Analytics ER Diagram slider defaults
+fk_max_entities_default = 25
+fk_max_entities_max     = 250
+fk_max_fields_default   = 6
+
+[ui.analytics]
+hub_top_n_default    = 20
+module_top_n_default = 12
+min_refs_default     = 3
+
+[ui.browse]
+completeness_low_threshold = 50   # % below which a table is flagged "low completeness"
+
+[tags]
+predefined = ["PII", "financial", "deprecated", ...]
+
+[admin]
+locked_pages      = ["changelog", "usage"]
+passcode_fallback = "admin1234"   # only used when secrets.toml has no admin_passcode
+```
+
+> **Secrets** (admin passcode, database URL) stay in `.streamlit/secrets.toml` which is git-ignored. `config.toml` is safe to commit.
+
+`config.py` is a thin loader that reads `config.toml` and exposes typed constants. It uses `tomllib` (Python ≥ 3.11) or the optional `tomli` package (Python 3.8–3.10). If `config.toml` is missing, all constants fall back to built-in defaults so the app always starts.
+
+---
+
 ## Project structure
 
 ```
 app.py                        # Streamlit application (~3200 lines)
+config.toml                   # Centralised app configuration (edit for each environment)
+config.py                     # Config loader — reads config.toml, exposes typed constants
 storage.py                    # Unified storage layer — file and postgres backends
 models.py                     # SQLAlchemy table definitions (postgres backend)
 import_xlsx.py                # CLI script: import xlsx → PostgreSQL dict_* tables
 requirements.txt              # Python dependencies
 Create_JSON.ipynb             # Notebook: xlsx → JSON export
 iris_data_dict.xlsx           # Source data (5 sheets)
+logo_banner.png               # Banner logo (optional; falls back to "SI" text)
 .streamlit/
   config.toml.example         # Server config template
   config.toml                 # Local config (git-ignored)
