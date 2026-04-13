@@ -182,19 +182,11 @@ def render_banner():
 header[data-testid="stHeader"] { display: none !important; }
 .main .block-container { padding-top: 80px !important; }
 section[data-testid="stSidebar"] > div:first-child { padding-top: 64px !important; }
-/* Keep sidebar BELOW the banner so the banner's left section is always visible */
-section[data-testid="stSidebar"],
-section[data-testid="stSidebar"] > div { z-index: 100 !important; }
-/* Lift the sidebar collapse/expand toggle ABOVE the banner so it stays clickable */
-div[data-testid="collapsedControl"],
-div[data-testid="stSidebarCollapsedControl"],
-section[data-testid="stSidebar"] button[kind="header"],
-button[data-testid="baseButton-headerNoPadding"] { z-index: 10001 !important; }
 .app-banner {
     position: fixed; top: 0; left: 0; right: 0; height: 60px;
     background: linear-gradient(135deg, #0c2247 0%, #163875 55%, #1b4290 100%);
     border-bottom: 2px solid #c9a84c;
-    display: flex; align-items: center; z-index: 9999;
+    display: flex; align-items: center; z-index: 999;
     padding: 0 18px; gap: 0;
     box-shadow: 0 3px 16px rgba(0,0,0,0.45);
     font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
@@ -260,9 +252,9 @@ button[data-testid="baseButton-headerNoPadding"] { z-index: 10001 !important; }
         + '<div class="bn-left">'
         + _logo_el
         + '<div class="bn-title-wrap">'
-        + '<span class="bn-app-name">Siriraj Iris Data Dictionary</span>'
+        + '<span class="bn-app-name">Siriraj IRIS Data Dictionary</span>'
         + '<div class="bn-badges">'
-        + '<span class="bn-badge">v2.0</span>'
+        + '<span class="bn-badge">v1.0</span>'
         + '<span class="bn-badge bn-badge-env">PROD</span>'
         + '</div></div></div>'
 
