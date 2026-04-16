@@ -2448,6 +2448,20 @@ elif st.session_state.page in ("browse", "detail"):
                     & (fk_res_all["source_sql_field_name"] != "")
                 ]["source_sql_table_name"].unique().tolist())
 
+                # ── FK field + table filter options (computed once from raw FK data) ─
+                _all_fk_field_opts = sorted(
+                    set(
+                        fk_res_all[
+                            fk_res_all["source_sql_table_name"] == tbl_name
+                        ]["source_sql_field_name"].dropna().tolist()
+                        + fk_res_all[
+                            fk_res_all["target_sql_table_name"] == tbl_name
+                        ]["source_sql_field_name"].dropna().tolist()
+                    ) - {""}
+                )
+                # Table options = all FK neighbors (unfiltered) so user can always pick any
+                _all_fk_table_opts = sorted(set(out_tbls) | set(in_tbls))
+
                 fk_ec0, fk_ec1, fk_ec2, fk_ec3 = st.columns([2, 2, 2, 3])
                 with fk_ec0:
                     fk_renderer = st.radio(
@@ -2509,7 +2523,7 @@ elif st.session_state.page in ("browse", "detail"):
                 })
                 _center_module = _tbl_module_map.get(tbl_name, "")
 
-                fk_mf_col, fk_cross_col = st.columns([4, 1])
+                fk_mf_col, fk_ff_col, fk_cross_col = st.columns([3, 3, 1])
                 with fk_mf_col:
                     fk_module_filter = st.multiselect(
                         "Filter by module (empty = all)",
@@ -2519,6 +2533,18 @@ elif st.session_state.page in ("browse", "detail"):
                         help=(
                             "Show only FK neighbors belonging to the selected modules. "
                             "The center table is always included."
+                        ),
+                    )
+                with fk_ff_col:
+                    fk_field_filter = st.multiselect(
+                        "Filter by FK field (empty = all)",
+                        options=_all_fk_field_opts,
+                        default=[],
+                        key=f"fk_field_filter_{tbl_name}",
+                        help=(
+                            "Show only FK links that involve the selected field(s). "
+                            "Outgoing: fields **in this table** that reference others. "
+                            "Incoming: fields **in other tables** that point here."
                         ),
                     )
                 with fk_cross_col:
@@ -2533,9 +2559,16 @@ elif st.session_state.page in ("browse", "detail"):
                         disabled=(fk_renderer == "Interactive (Cytoscape)"),
                     )
 
-                st.caption(
-                    f"**{tbl_name}** → outgoing FK to **{len(out_tbls)}** table(s) · "
-                    f"incoming FK from **{len(in_tbls)}** table(s)"
+                fk_table_filter = st.multiselect(
+                    "Filter by table (empty = all)",
+                    options=_all_fk_table_opts,
+                    default=[],
+                    key=f"fk_table_filter_{tbl_name}",
+                    help=(
+                        "Pin the diagram to specific FK neighbor table(s). "
+                        "The center table is always included. "
+                        "Applied after module and field filters."
+                    ),
                 )
 
                 def _apply_module_filter(tbls: list, center: str, module_filter: list) -> list:
@@ -2546,6 +2579,65 @@ elif st.session_state.page in ("browse", "detail"):
                         t for t in tbls
                         if t == center or _tbl_module_map.get(t, "") in module_filter
                     ]
+
+                def _apply_fk_field_filter(out_t: list, in_t: list, field_filter: list):
+                    """Keep only FK neighbors connected via the selected field name(s)."""
+                    if not field_filter:
+                        return out_t, in_t
+                    fset = set(field_filter)
+                    _allowed_out = set(
+                        fk_res_all[
+                            (fk_res_all["source_sql_table_name"] == tbl_name)
+                            & (fk_res_all["source_sql_field_name"].isin(fset))
+                        ]["target_sql_table_name"].tolist()
+                    )
+                    _allowed_in = set(
+                        fk_res_all[
+                            (fk_res_all["target_sql_table_name"] == tbl_name)
+                            & (fk_res_all["source_sql_field_name"].isin(fset))
+                        ]["source_sql_table_name"].tolist()
+                    )
+                    return (
+                        [t for t in out_t if t in _allowed_out],
+                        [t for t in in_t if t in _allowed_in],
+                    )
+
+                def _apply_table_filter(out_t: list, in_t: list, table_filter: list):
+                    """Keep only the explicitly selected FK neighbor tables (center always kept)."""
+                    if not table_filter:
+                        return out_t, in_t
+                    tset = set(table_filter)
+                    return (
+                        [t for t in out_t if t in tset],
+                        [t for t in in_t if t in tset],
+                    )
+
+                # Apply FK-field and table filters independently (OR logic):
+                # each filter runs against the original unfiltered out_tbls/in_tbls,
+                # then the results are unioned so selecting a table is never blocked
+                # by the field filter (and vice-versa).
+                _ff_out, _ff_in = _apply_fk_field_filter(out_tbls, in_tbls, fk_field_filter)
+                _tf_out, _tf_in = _apply_table_filter(out_tbls, in_tbls, fk_table_filter)
+
+                if fk_field_filter and fk_table_filter:
+                    out_tbls = sorted(set(_ff_out) | set(_tf_out))
+                    in_tbls  = sorted(set(_ff_in)  | set(_tf_in))
+                elif fk_field_filter:
+                    out_tbls, in_tbls = _ff_out, _ff_in
+                elif fk_table_filter:
+                    out_tbls, in_tbls = _tf_out, _tf_in
+                # else: no active filter → keep originals
+
+                _caption_parts = []
+                if fk_field_filter:
+                    _caption_parts.append(f"field: {', '.join(fk_field_filter)}")
+                if fk_table_filter:
+                    _caption_parts.append(f"table: {', '.join(fk_table_filter)}")
+                _caption_extra = f" *({'; '.join(_caption_parts)})*" if _caption_parts else ""
+                st.caption(
+                    f"**{tbl_name}** → outgoing FK to **{len(out_tbls)}** table(s) · "
+                    f"incoming FK from **{len(in_tbls)}** table(s){_caption_extra}"
+                )
 
                 # ── Interactive (Cytoscape) view ──
                 if fk_renderer == "Interactive (Cytoscape)":

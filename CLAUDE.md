@@ -238,10 +238,37 @@ Each table detail page has **five** tabs:
 1. **📋 Schema** — fields, FK references, incoming refs, parameters, triggers
 2. **⚙️ SQL Builder** — generate SELECT; IRIS arrow-syntax (`->`) examples for FK and `_DR` display fields
 3. **🇹🇭 Thai Descriptions** — `st.data_editor` saving to `translations.json`
-4. **📐 FK Diagram** — renderer toggle (`fk_renderer_{tbl_name}`): **Mermaid** (`build_er_mermaid`) or **Interactive** (`build_cytoscape_html`); entity limit slider up to 250 (default 25); module filter multiselect (applies to both renderers); cross-module refs checkbox (Mermaid only); Split view (Mermaid only) shows Outgoing/Incoming side-by-side
+4. **📐 FK Diagram** — renderer toggle (`fk_renderer_{tbl_name}`): **Mermaid** (`build_er_mermaid`) or **Interactive** (`build_cytoscape_html`); entity limit slider up to 250 (default 25); three independent filters (module, FK field, table — see below); cross-module refs checkbox (Mermaid only); Split view (Mermaid only) shows Outgoing/Incoming side-by-side
 5. **🔗 Lineage** — column-level upstream/downstream FK paths with MS SQL types
 
 Tab selection is persisted across `st.rerun()` calls via a `localStorage` JS snippet injected after `st.tabs(...)`, keyed to the table name.
+
+#### FK Diagram filter logic
+
+Three filters are available. All session-state keys are scoped per table (`_{tbl_name}` suffix):
+
+| Filter | Session key | Applied at |
+|---|---|---|
+| **Filter by module** (`fk_module_filter_{tbl_name}`) | multiselect | Render time — passed into `_apply_module_filter()` at every `build_er_mermaid` / `build_cytoscape_html` call |
+| **Filter by FK field** (`fk_field_filter_{tbl_name}`) | multiselect | Pre-render — `_apply_fk_field_filter()` runs against the original `out_tbls`/`in_tbls` |
+| **Filter by table** (`fk_table_filter_{tbl_name}`) | multiselect | Pre-render — `_apply_table_filter()` runs against the original `out_tbls`/`in_tbls` |
+
+**FK field filter** and **table filter** run independently against the unfiltered neighbor sets; their results are **unioned** before the module filter is applied:
+
+```python
+_ff_out, _ff_in = _apply_fk_field_filter(out_tbls, in_tbls, fk_field_filter)
+_tf_out, _tf_in = _apply_table_filter(out_tbls, in_tbls, fk_table_filter)
+
+if fk_field_filter and fk_table_filter:
+    out_tbls = sorted(set(_ff_out) | set(_tf_out))
+    in_tbls  = sorted(set(_ff_in)  | set(_tf_in))
+elif fk_field_filter:
+    out_tbls, in_tbls = _ff_out, _ff_in
+elif fk_table_filter:
+    out_tbls, in_tbls = _tf_out, _tf_in
+```
+
+The caption below the filter row reflects the post-filter counts and labels active filters.
 
 ### Analytics page tabs
 

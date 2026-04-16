@@ -54,7 +54,7 @@ Quick reference for where to find every feature in the app:
 | 📋 Schema | Browse → click a table → **1st tab "📋 Schema"** (IRIS type, MS SQL type, FK references) |
 | ⚙️ SQL Builder | Browse → click a table → **2nd tab "⚙️ SQL Builder"** |
 | 🇹🇭 Thai Desc | Browse → click a table → **3rd tab "🇹🇭 Thai Descriptions"** |
-| 📐 FK Diagram | Browse → click a table → **4th tab "📐 FK Diagram"** (slider up to 250 entities; module filter; Split view) |
+| 📐 FK Diagram | Browse → click a table → **4th tab "📐 FK Diagram"** (slider up to 250 entities; filter by module / FK field / table; Split view) |
 | 🔗 Lineage | Browse → click a table → **5th tab "🔗 Lineage"** (column-level upstream/downstream FK paths) |
 | ☀️ / 🌙 Theme | Bottom of sidebar → **Light Mode / Dark Mode** toggle |
 | ☰ Sidebar toggle | Banner left edge → **☰** button, or hover the gold strip on the far left of the page |
@@ -133,7 +133,7 @@ Each table detail page has five tabs:
 | **📋 Schema** | Columns with IRIS type, MS SQL type, description, and FK reference (TargetTable.PK). Outgoing and incoming FK expandable sections. |
 | **⚙️ SQL Builder** | Build `SELECT` statements; IRIS arrow-syntax examples for reference fields; ObjectScript access pattern |
 | **🇹🇭 Thai Descriptions** | Inline editor for Thai field descriptions with per-table progress bar |
-| **📐 FK Diagram** | ER diagram of FK connections; **Mermaid (static)** or **Interactive (Cytoscape)** renderer; adjustable entity limit (default 25); Outgoing / Incoming / Both / Split view; SVG + PNG export |
+| **📐 FK Diagram** | ER diagram of FK connections; **Mermaid (static)** or **Interactive (Cytoscape)** renderer; adjustable entity limit (default 25); Outgoing / Incoming / Both / Split view; filter by module, FK field, and table; SVG + PNG export |
 | **🔗 Lineage** | Column-level lineage: upstream (this table's FK fields → target table + PK) and downstream (which fields in other tables reference this table), both with MS SQL types |
 
 ### Table Tags
@@ -249,7 +249,11 @@ Controls:
 | **Layout** | LR · TB | Left-to-right or top-to-bottom (Mermaid only) |
 | **Max entities per diagram** | 5–250 (default 25) | Raise to see more tables; lower for a cleaner view |
 | **Filter by module** | multiselect (empty = all) | Show only FK neighbors from selected modules; center table always kept |
+| **Filter by FK field** | multiselect (empty = all) | Show only FK links that involve the selected field(s) — outgoing fields are in this table; incoming fields are in the connecting tables |
+| **Filter by table** | multiselect (empty = all) | Pin the diagram to specific FK neighbor table(s) by name; center table always kept |
 | **Cross-module refs** | on / off | Also draw tables from other modules that filtered tables reference (Mermaid only) |
+
+**Filter interaction:** Module filter is applied at render time. FK field and table filters are **independent** — each runs against the full unfiltered neighbor set, and their results are **unioned**. Selecting a table is never blocked by the field filter and vice-versa.
 
 ### Mermaid (static) renderer
 
