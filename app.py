@@ -20,6 +20,14 @@ from config import (
     HUB_TOP_N_DEFAULT, MODULE_TOP_N_DEFAULT, MIN_REFS_DEFAULT,
     COMPLETENESS_LOW_THRESHOLD,
     DEFAULT_PAGE, DEFAULT_MODULE_FILTER, DEFAULT_THEME,
+    AI_MAX_SCHEMA_TABLES, AI_DEFAULT_PROVIDER, AI_DEFAULT_USE_CASE,
+    AI_REQUEST_TIMEOUT_SECS,
+)
+from ai_provider import (
+    PROVIDERS, PROVIDER_NAMES,
+    call_llm, get_ollama_models, test_connection,
+    build_schema_context, build_system_prompt,
+    STARTER_PROMPTS, parse_suggested_followups,
 )
 # ─── Storage backend (file or postgres — set via secrets.toml) ────────────────
 from storage import (
@@ -1484,6 +1492,17 @@ for key, default in [
     ("analytics_tab",      0),
     ("theme",              DEFAULT_THEME),
     ("admin_authenticated", False),
+    # AI Query Assistant
+    ("ai_provider",       AI_DEFAULT_PROVIDER),
+    ("ai_model",          ""),
+    ("ai_use_case",       AI_DEFAULT_USE_CASE),
+    ("ai_base_url",       ""),
+    ("ai_api_keys",       {}),
+    ("ai_chat_business",  []),
+    ("ai_chat_migration", []),
+    ("ai_chat_interface", []),
+    ("ai_followups",      []),
+    ("ai_pending",        False),
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
@@ -1584,6 +1603,7 @@ with st.sidebar:
         "search":    "🔍  Search",
         "browse":    "📁  Browse",
         "analytics": "📊  Analytics",
+        "ai_query":  "🤖  AI Query",
         "changelog": "📋  Changelog",
         "usage":     "📈  Usage Stats",
     }
@@ -3503,3 +3523,270 @@ elif st.session_state.page == "changelog":
             clear_changelog()
             st.success("Changelog cleared.")
             st.rerun()
+
+# ─── AI QUERY ASSISTANT ───────────────────────────────────────────────────────
+
+elif st.session_state.page == "ai_query":
+    st.title("🤖 AI Query Assistant")
+    st.markdown(
+        "Generate IRIS SQL queries using AI. Ask business questions, map migrations, "
+        "or build HL7/OMOP integration queries — schema context is added automatically."
+    )
+
+    # ── on_change callbacks (avoid explicit st.rerun inside render) ───────────
+    def _on_provider_change():
+        new_prov = st.session_state._ai_prov_sel
+        st.session_state.ai_provider = new_prov
+        st.session_state.ai_model = PROVIDERS[new_prov]["default_model"]
+        st.session_state.ai_base_url = ""          # clear so new provider uses its own URL
+        st.session_state.pop("_ai_ollama_models", None)
+        st.session_state.pop("_ai_conn_result", None)
+
+    def _on_preset_change():
+        preset = st.session_state._ai_model_preset
+        if preset != "✏️ Custom...":
+            st.session_state.ai_model = preset
+
+    def _on_key_change():
+        st.session_state.ai_api_keys[st.session_state.ai_provider] = (
+            st.session_state._ai_key_input
+        )
+
+    def _on_base_url_change():
+        st.session_state.ai_base_url = st.session_state._ai_base_url_input
+        st.session_state.pop("_ai_ollama_models", None)
+
+    # ── Provider settings ─────────────────────────────────────────────────────
+    with st.expander("⚙️ AI Provider Settings", expanded=False):
+        _pc1, _pc2, _pc3 = st.columns([2, 2, 3])
+        _prov_cfg = PROVIDERS[st.session_state.ai_provider]
+
+        with _pc1:
+            st.selectbox(
+                "Provider",
+                PROVIDER_NAMES,
+                index=PROVIDER_NAMES.index(st.session_state.ai_provider)
+                      if st.session_state.ai_provider in PROVIDER_NAMES else 0,
+                key="_ai_prov_sel",
+                on_change=_on_provider_change,
+            )
+            # Re-read after possible on_change update
+            _prov_cfg = PROVIDERS[st.session_state.ai_provider]
+
+        # Ollama: fetch models once per URL, cache in session_state
+        if _prov_cfg["type"] == "ollama":
+            _ollama_url = st.session_state.ai_base_url or _prov_cfg["base_url"]
+            if "_ai_ollama_models" not in st.session_state:
+                st.session_state._ai_ollama_models = (
+                    get_ollama_models(_ollama_url) or [_prov_cfg["default_model"]]
+                )
+            _avail_models = st.session_state._ai_ollama_models
+        else:
+            _avail_models = _prov_cfg["models"] or []
+
+        with _pc2:
+            _CUSTOM_OPT   = "✏️ Custom..."
+            _drop_list    = _avail_models + [_CUSTOM_OPT] if _avail_models else [_CUSTOM_OPT]
+            _cur_model    = st.session_state.ai_model or _prov_cfg["default_model"]
+            _drop_default = _cur_model if _cur_model in _avail_models else _CUSTOM_OPT
+            st.selectbox(
+                "Model (preset)",
+                _drop_list,
+                index=_drop_list.index(_drop_default),
+                key="_ai_model_preset",
+                on_change=_on_preset_change,
+            )
+            # Text input is the authoritative model value — key=ai_model syncs directly
+            st.text_input(
+                "Model name (editable)",
+                key="ai_model",
+                placeholder=_prov_cfg["default_model"],
+            )
+
+        with _pc3:
+            if st.session_state.ai_provider in ("Ollama (Local)", "Custom Endpoint"):
+                st.text_input(
+                    "Base URL",
+                    value=st.session_state.ai_base_url or _prov_cfg["base_url"],
+                    key="_ai_base_url_input",
+                    placeholder="http://localhost:11434",
+                    on_change=_on_base_url_change,
+                )
+            else:
+                st.caption(f"Endpoint: `{_prov_cfg['base_url']}`")
+                if _prov_cfg.get("docs_url"):
+                    st.caption(f"[Get API key]({_prov_cfg['docs_url']})")
+
+        if _prov_cfg["needs_key"]:
+            st.text_input(
+                f"API Key for {st.session_state.ai_provider}",
+                value=st.session_state.ai_api_keys.get(st.session_state.ai_provider, ""),
+                type="password",
+                key="_ai_key_input",
+                placeholder=_prov_cfg.get("key_hint", ""),
+                on_change=_on_key_change,
+            )
+
+        # ── Test Connection button ─────────────────────────────────────────────
+        st.markdown("---")
+        _tb1, _tb2 = st.columns([1, 3])
+        with _tb1:
+            _do_test = st.button("🔌 Test Connection", key="ai_test_btn", use_container_width=True)
+        with _tb2:
+            _conn_result = st.session_state.get("_ai_conn_result")
+            if _conn_result is not None:
+                _ok, _msg = _conn_result
+                if _ok:
+                    st.success(_msg)
+                else:
+                    st.error(_msg)
+
+        if _do_test:
+            _test_key   = st.session_state.ai_api_keys.get(st.session_state.ai_provider, "")
+            _uses_custom_url = st.session_state.ai_provider in ("Ollama (Local)", "Custom Endpoint")
+            _test_url   = (st.session_state.ai_base_url if _uses_custom_url else "") or _prov_cfg["base_url"]
+            _test_model = (st.session_state.ai_model or "").strip() or _prov_cfg["default_model"]
+            with st.spinner(f"Testing {st.session_state.ai_provider} / {_test_model}…"):
+                _ok, _msg = test_connection(
+                    provider_name=st.session_state.ai_provider,
+                    model=_test_model,
+                    api_key=_test_key,
+                    base_url=_test_url,
+                )
+            st.session_state._ai_conn_result = (_ok, _msg)
+            st.rerun()
+
+    # ── Use-case selector ─────────────────────────────────────────────────────
+    _uc_labels = {
+        "business":  "💼 Business Query",
+        "migration": "🔄 Migration",
+        "interface": "🔌 Interface (HL7 / OMOP / FHIR)",
+    }
+
+    _uc_cols = st.columns(len(_uc_labels))
+    for _i, (_uc_key, _uc_label) in enumerate(_uc_labels.items()):
+        _active = st.session_state.ai_use_case == _uc_key
+        with _uc_cols[_i]:
+            if st.button(
+                _uc_label,
+                key=f"uc_{_uc_key}",
+                type="primary" if _active else "secondary",
+                use_container_width=True,
+            ):
+                if not _active:
+                    st.session_state.ai_use_case = _uc_key
+                    st.session_state.ai_followups = []
+                    st.rerun()
+
+    _use_case = st.session_state.ai_use_case
+    _chat_key = f"ai_chat_{_use_case}"
+
+    st.markdown("---")
+
+    # ── Chat history ──────────────────────────────────────────────────────────
+    _history: list = st.session_state.get(_chat_key, [])
+
+    if not _history:
+        st.markdown(f"**Starter prompts for {_uc_labels[_use_case]}:**")
+        _sp_list = STARTER_PROMPTS.get(_use_case, [])
+        _sp_cols = st.columns(2)
+        for _si, _sp in enumerate(_sp_list):
+            with _sp_cols[_si % 2]:
+                if st.button(_sp, key=f"sp_{_use_case}_{_si}", use_container_width=True):
+                    st.session_state[_chat_key] = [{"role": "user", "content": _sp}]
+                    st.session_state.ai_followups = []
+                    st.session_state.ai_pending = True
+                    st.rerun()
+    else:
+        # Render completed messages
+        for _msg in _history:
+            with st.chat_message(_msg["role"]):
+                st.markdown(_msg["content"])
+
+        # ── Pending: show typing bubble then call API ──────────────────────────
+        if st.session_state.ai_pending:
+            _prov_cfg  = PROVIDERS[st.session_state.ai_provider]
+            _prov_key  = st.session_state.ai_api_keys.get(st.session_state.ai_provider, "")
+            _uses_custom_url = st.session_state.ai_provider in ("Ollama (Local)", "Custom Endpoint")
+            _prov_url  = (st.session_state.ai_base_url if _uses_custom_url else "") or _prov_cfg["base_url"]
+            _model     = (st.session_state.ai_model or "").strip() or _prov_cfg["default_model"]
+
+            _last_user_q = next(
+                (m["content"] for m in reversed(_history) if m["role"] == "user"), ""
+            )
+            _schema_ctx = build_schema_context(
+                _last_user_q, tables, fields, fk, max_tables=AI_MAX_SCHEMA_TABLES,
+            )
+            _sys_prompt = build_system_prompt(_use_case, _schema_ctx)
+            _MAX_TURNS  = 10
+            _api_msgs   = [{"role": "system", "content": _sys_prompt}]
+            _api_msgs  += _history[-(_MAX_TURNS * 2):]
+
+            with st.chat_message("assistant"):
+                with st.spinner(f"Thinking… ({st.session_state.ai_provider} / {_model})"):
+                    try:
+                        _reply = call_llm(
+                            provider_name=st.session_state.ai_provider,
+                            model=_model,
+                            api_key=_prov_key,
+                            base_url=_prov_url,
+                            messages=_api_msgs,
+                            timeout=AI_REQUEST_TIMEOUT_SECS,
+                        )
+                    except RuntimeError as _e:
+                        _reply = (
+                            f"**Error:** {_e}\n\n"
+                            "_Please check your API key and model name in ⚙️ Provider Settings._"
+                        )
+                    except Exception as _e:
+                        _reply = f"**Unexpected error:** {_e}"
+
+            _history.append({"role": "assistant", "content": _reply})
+            st.session_state[_chat_key] = _history
+            st.session_state.ai_pending = False
+            st.session_state.ai_followups = parse_suggested_followups(_reply)
+            st.session_state["_ai_last_schema"] = _schema_ctx
+            log_event("ai_query", {"use_case": _use_case, "provider": st.session_state.ai_provider})
+            st.rerun()
+
+        # Follow-up suggestion buttons (only after last assistant reply)
+        elif _history[-1]["role"] == "assistant":
+            _followups = st.session_state.ai_followups
+            if _followups:
+                st.markdown("**Suggested follow-ups:**")
+                _fu_cols = st.columns(len(_followups))
+                for _fi, _fu in enumerate(_followups):
+                    with _fu_cols[_fi]:
+                        if st.button(_fu, key=f"fu_{_fi}", use_container_width=True):
+                            st.session_state[_chat_key].append({"role": "user", "content": _fu})
+                            st.session_state.ai_followups = []
+                            st.session_state.ai_pending = True
+                            st.rerun()
+
+        if not st.session_state.ai_pending:
+            if st.button("🗑️ Clear chat", key="ai_clear", type="secondary"):
+                st.session_state[_chat_key] = []
+                st.session_state.ai_followups = []
+                st.session_state.ai_pending = False
+                st.rerun()
+
+    # ── Chat input ────────────────────────────────────────────────────────────
+    _user_input = st.chat_input(
+        f"Ask a {_uc_labels[_use_case].split(' ', 1)[1]} question about IRIS data…",
+        key="ai_chat_input",
+        disabled=st.session_state.ai_pending,
+    )
+
+    if _user_input:
+        _history = st.session_state.get(_chat_key, [])
+        _history.append({"role": "user", "content": _user_input})
+        st.session_state[_chat_key] = _history
+        st.session_state.ai_followups = []
+        st.session_state.ai_pending = True
+        st.rerun()
+
+    # Schema context peek (persists after rerun, shown below chat)
+    if st.session_state.get("_ai_last_schema") and _history and not st.session_state.ai_pending:
+        with st.expander("📋 Last schema context sent to AI", expanded=False):
+            _sc = st.session_state["_ai_last_schema"]
+            st.markdown(_sc if _sc.strip() else "_No matching tables found._")

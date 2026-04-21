@@ -1,0 +1,26 @@
+[
+  {
+    "timestamp": "2026-04-11 16:49:25",
+    "action": "metadata_saved",
+    "table": "OE_OrdItem",
+    "details": "cert=Certified, owner=Drug, freq=Real-time"
+  },
+  {
+    "timestamp": "2026-04-11 16:48:59",
+    "action": "tag_removed",
+    "table": "OE_OrdItem",
+    "details": "Removed tag: PII"
+  },
+  {
+    "timestamp": "2026-04-11 16:48:56",
+    "action": "tag_added",
+    "table": "OE_OrdItem",
+    "details": "Added tag: PII"
+  },
+  {
+    "timestamp": "2026-04-10 17:47:45",
+    "action": "translation_saved",
+    "table": "PAAdm_Attendant",
+    "details": "Saved 21 Thai descriptions"
+  }
+]

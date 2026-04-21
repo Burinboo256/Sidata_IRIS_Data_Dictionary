@@ -117,3 +117,9 @@ UPDATE_FREQ_OPTIONS: list[str] = list(_get("metadata.update_freq_options", [
 # ── Admin ─────────────────────────────────────────────────────────────────────
 LOCKED_PAGES: set[str]   = set(_get("admin.locked_pages",    ["changelog", "usage"]))
 ADMIN_PASSCODE_FALLBACK  = _get("admin.passcode_fallback",   "admin1234")
+
+# ── AI Query Assistant ────────────────────────────────────────────────────────
+AI_MAX_SCHEMA_TABLES     = int(_get("ai.max_schema_tables",    8))
+AI_DEFAULT_PROVIDER      = _get("ai.default_provider",        "Claude (Anthropic)")
+AI_DEFAULT_USE_CASE      = _get("ai.default_use_case",        "business")
+AI_REQUEST_TIMEOUT_SECS  = int(_get("ai.request_timeout_secs", 120))

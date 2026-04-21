@@ -76,3 +76,10 @@ update_freq_options = [
 [admin]
 locked_pages      = ["changelog", "usage"]  # pages requiring passcode
 passcode_fallback = "admin1234"             # used only when secrets.toml has no admin_passcode
+
+# ── AI Query Assistant ────────────────────────────────────────────────────────
+[ai]
+max_schema_tables    = 8     # max tables included in auto schema context
+default_provider     = "Claude (Anthropic)"
+default_use_case     = "business"   # business | migration | interface
+request_timeout_secs = 120

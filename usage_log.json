@@ -1,0 +1,2317 @@
+[
+  {
+    "timestamp": "2026-04-11 08:34:31",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-11 08:34:31",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 08:34:34",
+    "event": "page_view",
+    "details": {
+      "page": "usage"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 08:34:50",
+    "event": "page_view",
+    "details": {
+      "page": "changelog"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 08:34:52",
+    "event": "page_view",
+    "details": {
+      "page": "analytics"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 08:34:53",
+    "event": "page_view",
+    "details": {
+      "page": "graph"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 08:34:55",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 08:34:57",
+    "event": "page_view",
+    "details": {
+      "page": "search"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 08:34:58",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 08:35:00",
+    "event": "page_view",
+    "details": {
+      "page": "usage"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 08:36:43",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-11 08:36:43",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 08:36:46",
+    "event": "page_view",
+    "details": {
+      "page": "usage"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 08:36:54",
+    "event": "page_view",
+    "details": {
+      "page": "changelog"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 08:36:55",
+    "event": "page_view",
+    "details": {
+      "page": "analytics"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 08:36:56",
+    "event": "page_view",
+    "details": {
+      "page": "graph"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 08:37:03",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 08:37:04",
+    "event": "page_view",
+    "details": {
+      "page": "search"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 08:37:05",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 08:37:06",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 08:42:05",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-11 08:42:05",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 08:42:07",
+    "event": "page_view",
+    "details": {
+      "page": "search"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 08:42:08",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 08:42:09",
+    "event": "page_view",
+    "details": {
+      "page": "graph"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 08:42:10",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 08:42:53",
+    "event": "page_view",
+    "details": {
+      "page": "detail"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 08:42:53",
+    "event": "table_view",
+    "details": {
+      "table": "APC_VendCat"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 08:42:55",
+    "event": "table_view",
+    "details": {
+      "table": "PA_Adm"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 08:46:09",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-11 08:46:09",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 08:46:12",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 08:46:59",
+    "event": "page_view",
+    "details": {
+      "page": "detail"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 08:46:59",
+    "event": "table_view",
+    "details": {
+      "table": "PA_Adm"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 08:47:11",
+    "event": "page_view",
+    "details": {
+      "page": "analytics"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 08:50:15",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-11 08:50:15",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 08:50:28",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 08:51:09",
+    "event": "page_view",
+    "details": {
+      "page": "detail"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 08:51:09",
+    "event": "table_view",
+    "details": {
+      "table": "PAAdm_Attendant"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 08:51:59",
+    "event": "table_view",
+    "details": {
+      "table": "PA_Adm"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 08:52:25",
+    "event": "page_view",
+    "details": {
+      "page": "graph"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 08:52:44",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 08:52:46",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 08:52:52",
+    "event": "page_view",
+    "details": {
+      "page": "detail"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 08:52:52",
+    "event": "table_view",
+    "details": {
+      "table": "PA_Adm2"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 09:05:37",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-11 09:05:37",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 09:05:40",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 09:05:54",
+    "event": "page_view",
+    "details": {
+      "page": "detail"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 09:05:54",
+    "event": "table_view",
+    "details": {
+      "table": "PA_Adm"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 09:07:18",
+    "event": "page_view",
+    "details": {
+      "page": "graph"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 09:07:32",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 09:07:34",
+    "event": "page_view",
+    "details": {
+      "page": "search"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 09:07:35",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 09:07:36",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 09:08:35",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 09:08:55",
+    "event": "page_view",
+    "details": {
+      "page": "detail"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 09:08:55",
+    "event": "table_view",
+    "details": {
+      "table": "MRC_Activity"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 09:15:16",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-11 09:15:16",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 09:15:18",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 09:15:23",
+    "event": "page_view",
+    "details": {
+      "page": "detail"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 09:15:23",
+    "event": "table_view",
+    "details": {
+      "table": "APC_Vendor"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 09:15:48",
+    "event": "page_view",
+    "details": {
+      "page": "usage"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 09:16:19",
+    "event": "page_view",
+    "details": {
+      "page": "changelog"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 09:16:20",
+    "event": "page_view",
+    "details": {
+      "page": "analytics"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 09:16:22",
+    "event": "page_view",
+    "details": {
+      "page": "changelog"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 09:16:22",
+    "event": "page_view",
+    "details": {
+      "page": "usage"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 09:20:35",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-11 09:20:35",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 09:20:47",
+    "event": "page_view",
+    "details": {
+      "page": "changelog"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 09:22:39",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-11 09:22:39",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 09:22:40",
+    "event": "page_view",
+    "details": {
+      "page": "changelog"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 09:23:29",
+    "event": "page_view",
+    "details": {
+      "page": "usage"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 09:23:34",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-11 09:23:34",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 09:23:37",
+    "event": "page_view",
+    "details": {
+      "page": "changelog"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 09:23:38",
+    "event": "page_view",
+    "details": {
+      "page": "usage"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 09:23:40",
+    "event": "page_view",
+    "details": {
+      "page": "graph"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 09:23:42",
+    "event": "page_view",
+    "details": {
+      "page": "analytics"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 09:23:43",
+    "event": "page_view",
+    "details": {
+      "page": "search"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 09:23:44",
+    "event": "page_view",
+    "details": {
+      "page": "analytics"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 09:24:05",
+    "event": "page_view",
+    "details": {
+      "page": "graph"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 09:24:06",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 09:24:08",
+    "event": "page_view",
+    "details": {
+      "page": "search"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 09:24:09",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 09:24:10",
+    "event": "page_view",
+    "details": {
+      "page": "analytics"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 12:21:35",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-11 12:21:35",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 12:21:38",
+    "event": "page_view",
+    "details": {
+      "page": "analytics"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 12:30:33",
+    "event": "page_view",
+    "details": {
+      "page": "graph"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 12:30:34",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 12:30:35",
+    "event": "page_view",
+    "details": {
+      "page": "search"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 12:30:41",
+    "event": "search",
+    "details": {
+      "query": "PA_Adm"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 12:30:43",
+    "event": "page_view",
+    "details": {
+      "page": "detail"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 12:30:43",
+    "event": "table_view",
+    "details": {
+      "table": "PA_Adm"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 12:32:31",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-11 12:32:31",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 12:32:33",
+    "event": "page_view",
+    "details": {
+      "page": "analytics"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 12:37:34",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-11 12:37:34",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 12:37:36",
+    "event": "page_view",
+    "details": {
+      "page": "analytics"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 12:39:09",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 12:42:43",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-11 12:42:43",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 12:42:45",
+    "event": "page_view",
+    "details": {
+      "page": "usage"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 12:43:04",
+    "event": "page_view",
+    "details": {
+      "page": "changelog"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 12:43:04",
+    "event": "page_view",
+    "details": {
+      "page": "analytics"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 12:43:05",
+    "event": "page_view",
+    "details": {
+      "page": "graph"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 12:43:06",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 12:43:07",
+    "event": "page_view",
+    "details": {
+      "page": "search"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 12:43:08",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 12:43:14",
+    "event": "page_view",
+    "details": {
+      "page": "usage"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 12:43:30",
+    "event": "page_view",
+    "details": {
+      "page": "changelog"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 12:43:31",
+    "event": "page_view",
+    "details": {
+      "page": "usage"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 12:43:32",
+    "event": "page_view",
+    "details": {
+      "page": "changelog"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 12:43:33",
+    "event": "page_view",
+    "details": {
+      "page": "analytics"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 12:43:35",
+    "event": "page_view",
+    "details": {
+      "page": "graph"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 12:43:37",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 12:43:38",
+    "event": "page_view",
+    "details": {
+      "page": "graph"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 12:43:40",
+    "event": "page_view",
+    "details": {
+      "page": "analytics"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 16:33:23",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-11 16:33:23",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 16:33:31",
+    "event": "page_view",
+    "details": {
+      "page": "analytics"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 16:37:48",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 16:38:02",
+    "event": "page_view",
+    "details": {
+      "page": "detail"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 16:38:02",
+    "event": "table_view",
+    "details": {
+      "table": "APC_Vendor"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 16:38:33",
+    "event": "table_view",
+    "details": {
+      "table": "BLC_ApprGroupRequestDescription"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 16:38:36",
+    "event": "table_view",
+    "details": {
+      "table": "LBC_Accreditation"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 16:39:34",
+    "event": "table_view",
+    "details": {
+      "table": "LB_BulkOperation"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 16:39:34",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 16:39:35",
+    "event": "page_view",
+    "details": {
+      "page": "search"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 16:39:40",
+    "event": "search",
+    "details": {
+      "query": "result"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 16:40:13",
+    "event": "page_view",
+    "details": {
+      "page": "detail"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 16:40:13",
+    "event": "table_view",
+    "details": {
+      "table": "LB_TestSetItem"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 16:43:24",
+    "event": "page_view",
+    "details": {
+      "page": "search"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 16:43:26",
+    "event": "search",
+    "details": {
+      "query": "OEOrdItem"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 16:43:46",
+    "event": "search",
+    "details": {
+      "query": "OEORI"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 16:43:50",
+    "event": "page_view",
+    "details": {
+      "page": "detail"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 16:43:50",
+    "event": "table_view",
+    "details": {
+      "table": "OE_OrdItem"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 16:44:50",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 16:44:53",
+    "event": "page_view",
+    "details": {
+      "page": "search"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 16:44:58",
+    "event": "page_view",
+    "details": {
+      "page": "detail"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 16:46:30",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 16:47:04",
+    "event": "page_view",
+    "details": {
+      "page": "detail"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 16:47:04",
+    "event": "table_view",
+    "details": {
+      "table": "OEC_LabResultStatus"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 16:48:04",
+    "event": "page_view",
+    "details": {
+      "page": "search"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 16:48:09",
+    "event": "page_view",
+    "details": {
+      "page": "detail"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 16:48:09",
+    "event": "table_view",
+    "details": {
+      "table": "OE_OrdItem"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 16:50:23",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 16:50:25",
+    "event": "page_view",
+    "details": {
+      "page": "search"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 16:50:27",
+    "event": "search",
+    "details": {
+      "query": "OEResult"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 16:50:42",
+    "event": "search",
+    "details": {
+      "query": "CTUOM"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 16:50:52",
+    "event": "search",
+    "details": {
+      "query": "OEResult"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 16:50:53",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 16:53:04",
+    "event": "page_view",
+    "details": {
+      "page": "detail"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 16:53:04",
+    "event": "table_view",
+    "details": {
+      "table": "OE_Result"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 16:53:09",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 16:53:09",
+    "event": "page_view",
+    "details": {
+      "page": "search"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 16:53:11",
+    "event": "search",
+    "details": {
+      "query": "OER_Result"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 16:53:24",
+    "event": "search",
+    "details": {
+      "query": "OE_Result"
+    }
+  },
+  {
+    "timestamp": "2026-04-11 16:53:27",
+    "event": "page_view",
+    "details": {
+      "page": "detail"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 00:31:23",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-12 00:31:23",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 00:31:25",
+    "event": "page_view",
+    "details": {
+      "page": "search"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 00:31:27",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 00:31:30",
+    "event": "page_view",
+    "details": {
+      "page": "detail"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 00:31:30",
+    "event": "table_view",
+    "details": {
+      "table": "APC_VendCat"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 00:31:44",
+    "event": "table_view",
+    "details": {
+      "table": "APC_Vendor"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 00:32:03",
+    "event": "page_view",
+    "details": {
+      "page": "analytics"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 00:51:53",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-12 00:51:53",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 00:53:03",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-12 00:53:03",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 00:53:38",
+    "event": "page_view",
+    "details": {
+      "page": "search"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 00:54:12",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 00:55:23",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-12 00:55:23",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 00:55:25",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 00:55:28",
+    "event": "page_view",
+    "details": {
+      "page": "search"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 00:55:29",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 00:55:30",
+    "event": "page_view",
+    "details": {
+      "page": "graph"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 00:55:32",
+    "event": "page_view",
+    "details": {
+      "page": "analytics"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 00:57:19",
+    "event": "page_view",
+    "details": {
+      "page": "graph"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 00:57:20",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 00:57:21",
+    "event": "page_view",
+    "details": {
+      "page": "graph"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 00:57:24",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 00:58:43",
+    "event": "page_view",
+    "details": {
+      "page": "detail"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 00:58:43",
+    "event": "table_view",
+    "details": {
+      "table": "OE_OrdItem"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:00:51",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:01:00",
+    "event": "page_view",
+    "details": {
+      "page": "detail"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:02:13",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-12 01:02:13",
+    "event": "page_view",
+    "details": {
+      "page": "detail"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:02:13",
+    "event": "table_view",
+    "details": {
+      "table": "OE_OrdItem"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:17:46",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-12 01:17:46",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:17:48",
+    "event": "page_view",
+    "details": {
+      "page": "analytics"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:18:20",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:18:42",
+    "event": "page_view",
+    "details": {
+      "page": "detail"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:18:42",
+    "event": "table_view",
+    "details": {
+      "table": "OE_OrdItem"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:22:48",
+    "event": "page_view",
+    "details": {
+      "page": "analytics"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:23:52",
+    "event": "page_view",
+    "details": {
+      "page": "graph"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:23:54",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:23:55",
+    "event": "page_view",
+    "details": {
+      "page": "graph"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:24:28",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:24:44",
+    "event": "page_view",
+    "details": {
+      "page": "graph"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:29:31",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-12 01:29:31",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:29:35",
+    "event": "page_view",
+    "details": {
+      "page": "analytics"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:29:39",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:30:08",
+    "event": "page_view",
+    "details": {
+      "page": "detail"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:30:08",
+    "event": "table_view",
+    "details": {
+      "table": "LBCF"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:30:15",
+    "event": "table_view",
+    "details": {
+      "table": "OEC_Action"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:30:25",
+    "event": "table_view",
+    "details": {
+      "table": "OEC_ReasonForExclOrdItem"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:30:41",
+    "event": "table_view",
+    "details": {
+      "table": "OE_OrdItem"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:32:22",
+    "event": "page_view",
+    "details": {
+      "page": "analytics"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:32:24",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:32:42",
+    "event": "page_view",
+    "details": {
+      "page": "usage"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:33:30",
+    "event": "page_view",
+    "details": {
+      "page": "changelog"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:33:36",
+    "event": "page_view",
+    "details": {
+      "page": "analytics"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:34:10",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:34:11",
+    "event": "page_view",
+    "details": {
+      "page": "search"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:34:16",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:39:18",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-12 01:39:18",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:42:48",
+    "event": "page_view",
+    "details": {
+      "page": "search"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:42:49",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:42:51",
+    "event": "page_view",
+    "details": {
+      "page": "analytics"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:42:56",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:43:43",
+    "event": "page_view",
+    "details": {
+      "page": "detail"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:43:43",
+    "event": "table_view",
+    "details": {
+      "table": "ARC_BillGrpDesc"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:50:32",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-12 01:50:32",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:50:34",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:52:01",
+    "event": "page_view",
+    "details": {
+      "page": "detail"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:52:01",
+    "event": "table_view",
+    "details": {
+      "table": "ARC_AdmixtureRec"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:52:18",
+    "event": "page_view",
+    "details": {
+      "page": "analytics"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:52:32",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:52:33",
+    "event": "page_view",
+    "details": {
+      "page": "search"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:52:36",
+    "event": "page_view",
+    "details": {
+      "page": "changelog"
+    }
+  },
+  {
+    "timestamp": "2026-04-12 01:52:38",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 12:19:02",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-13 12:19:02",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 12:22:47",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-13 12:22:47",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 12:29:43",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-13 12:29:43",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 12:30:17",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-13 12:30:17",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 12:30:38",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-13 12:30:38",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 12:30:52",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-13 12:30:52",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 12:30:58",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-13 12:30:58",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 12:31:24",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-13 12:31:24",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 12:31:59",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-13 12:31:59",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 12:36:55",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-13 12:36:55",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 12:37:23",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-13 12:37:23",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 12:37:34",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 12:41:32",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-13 12:41:32",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 12:44:27",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-13 12:44:27",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 12:44:38",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-13 12:44:38",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 12:46:54",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 12:48:39",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-13 12:48:39",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 12:51:58",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-13 12:51:58",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 12:52:31",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-13 12:52:31",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 12:56:41",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-13 12:56:41",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 12:59:05",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-13 12:59:05",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 12:59:18",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-13 12:59:18",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 12:59:21",
+    "event": "page_view",
+    "details": {
+      "page": "changelog"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 13:02:10",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-13 13:02:10",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 13:02:32",
+    "event": "page_view",
+    "details": {
+      "page": "usage"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 13:02:41",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-13 13:02:41",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 13:02:49",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 13:03:21",
+    "event": "page_view",
+    "details": {
+      "page": "search"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 13:03:24",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 13:03:26",
+    "event": "page_view",
+    "details": {
+      "page": "analytics"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 13:03:27",
+    "event": "page_view",
+    "details": {
+      "page": "changelog"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 13:03:27",
+    "event": "page_view",
+    "details": {
+      "page": "usage"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 13:14:36",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-13 13:14:36",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 13:14:42",
+    "event": "page_view",
+    "details": {
+      "page": "search"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 13:14:43",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 13:14:44",
+    "event": "page_view",
+    "details": {
+      "page": "analytics"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 13:14:45",
+    "event": "page_view",
+    "details": {
+      "page": "changelog"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 13:14:47",
+    "event": "page_view",
+    "details": {
+      "page": "analytics"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 14:04:12",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-13 14:04:12",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 14:04:27",
+    "event": "page_view",
+    "details": {
+      "page": "analytics"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 14:05:41",
+    "event": "page_view",
+    "details": {
+      "page": "browse"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 14:06:03",
+    "event": "page_view",
+    "details": {
+      "page": "detail"
+    }
+  },
+  {
+    "timestamp": "2026-04-13 14:06:03",
+    "event": "table_view",
+    "details": {
+      "table": "ARC_Initiation"
+    }
+  },
+  {
+    "timestamp": "2026-04-16 10:24:24",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-16 10:24:24",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-16 10:24:27",
+    "event": "page_view",
+    "details": {
+      "page": "search"
+    }
+  },
+  {
+    "timestamp": "2026-04-16 10:24:31",
+    "event": "search",
+    "details": {
+      "query": "itemma"
+    }
+  },
+  {
+    "timestamp": "2026-04-16 10:24:57",
+    "event": "search",
+    "details": {
+      "query": "ItmMast"
+    }
+  },
+  {
+    "timestamp": "2026-04-16 10:24:58",
+    "event": "page_view",
+    "details": {
+      "page": "detail"
+    }
+  },
+  {
+    "timestamp": "2026-04-16 10:24:58",
+    "event": "table_view",
+    "details": {
+      "table": "ARC_ItmMast"
+    }
+  },
+  {
+    "timestamp": "2026-04-16 10:33:50",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-16 10:33:50",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-16 10:33:54",
+    "event": "page_view",
+    "details": {
+      "page": "search"
+    }
+  },
+  {
+    "timestamp": "2026-04-16 10:34:02",
+    "event": "search",
+    "details": {
+      "query": "ItmM"
+    }
+  },
+  {
+    "timestamp": "2026-04-16 10:34:04",
+    "event": "page_view",
+    "details": {
+      "page": "detail"
+    }
+  },
+  {
+    "timestamp": "2026-04-16 10:34:04",
+    "event": "table_view",
+    "details": {
+      "table": "ARC_ItmMast"
+    }
+  },
+  {
+    "timestamp": "2026-04-17 22:55:41",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-17 22:55:41",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-17 22:55:43",
+    "event": "page_view",
+    "details": {
+      "page": "ai_query"
+    }
+  },
+  {
+    "timestamp": "2026-04-17 22:58:49",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-17 22:58:49",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-17 22:58:52",
+    "event": "page_view",
+    "details": {
+      "page": "ai_query"
+    }
+  },
+  {
+    "timestamp": "2026-04-17 23:05:38",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-17 23:05:38",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-17 23:05:40",
+    "event": "page_view",
+    "details": {
+      "page": "ai_query"
+    }
+  },
+  {
+    "timestamp": "2026-04-17 23:18:35",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-17 23:18:35",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-17 23:18:37",
+    "event": "page_view",
+    "details": {
+      "page": "ai_query"
+    }
+  },
+  {
+    "timestamp": "2026-04-17 23:29:54",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-17 23:29:54",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-17 23:29:59",
+    "event": "page_view",
+    "details": {
+      "page": "ai_query"
+    }
+  },
+  {
+    "timestamp": "2026-04-17 23:34:05",
+    "event": "session_start",
+    "details": {}
+  },
+  {
+    "timestamp": "2026-04-17 23:34:05",
+    "event": "page_view",
+    "details": {
+      "page": "home"
+    }
+  },
+  {
+    "timestamp": "2026-04-17 23:34:09",
+    "event": "page_view",
+    "details": {
+      "page": "ai_query"
+    }
+  },
+  {
+    "timestamp": "2026-04-17 23:34:39",
+    "event": "ai_query",
+    "details": {
+      "use_case": "business",
+      "provider": "OpenAI / Codex"
+    }
+  },
+  {
+    "timestamp": "2026-04-17 23:35:30",
+    "event": "ai_query",
+    "details": {
+      "use_case": "business",
+      "provider": "OpenAI / Codex"
+    }
+  },
+  {
+    "timestamp": "2026-04-17 23:41:37",
+    "event": "ai_query",
+    "details": {
+      "use_case": "interface",
+      "provider": "OpenAI / Codex"
+    }
+  },
+  {
+    "timestamp": "2026-04-17 23:42:50",
+    "event": "ai_query",
+    "details": {
+      "use_case": "interface",
+      "provider": "OpenAI / Codex"
+    }
+  },
+  {
+    "timestamp": "2026-04-17 23:44:43",
+    "event": "ai_query",
+    "details": {
+      "use_case": "migration",
+      "provider": "OpenAI / Codex"
+    }
+  }
+]
