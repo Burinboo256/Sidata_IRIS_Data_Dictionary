@@ -31,6 +31,14 @@ from storage import (
     load_usage_log,   log_event,
     BACKEND,
 )
+from lineage_finder import (
+    build_fk_graph,
+    find_table_paths,
+    enrich_lineage_paths,
+    lineage_paths_to_dataframe,
+    build_lineage_mermaid,
+    build_lineage_ascii,
+)
 
 # ─── Page config ─────────────────────────────────────────────────────────────
 
@@ -1584,6 +1592,7 @@ with st.sidebar:
         "search":    "🔍  Search",
         "browse":    "📁  Browse",
         "analytics": "📊  Analytics",
+        "lineage_finder": "🔗  Lineage Finder",
         "changelog": "📋  Changelog",
         "usage":     "📈  Usage Stats",
     }
@@ -2879,6 +2888,140 @@ elif st.session_state.page in ("browse", "detail"):
                             "MS SQL Type": iris_to_mssql(iris_t),
                         })
                     st.dataframe(pd.DataFrame(type_rows), width="stretch", hide_index=True)
+
+# ─── LINEAGE FINDER ──────────────────────────────────────────────────────────
+
+elif st.session_state.page == "lineage_finder":
+    st.title("🔗 Table Relationship & Lineage Finder")
+    st.markdown(
+        "Select a source table and target table to find direct or indirect FK paths between them."
+    )
+
+    table_options = sorted(tables["sql_table_name"].dropna().astype(str).unique().tolist())
+    if len(table_options) < 2:
+        st.warning("At least two tables are required to search lineage paths.")
+    else:
+        default_target_idx = 1 if len(table_options) > 1 else 0
+        c1, c2 = st.columns(2)
+        with c1:
+            source_table = st.selectbox(
+                "Source Table",
+                table_options,
+                key="lineage_source_table",
+            )
+        with c2:
+            target_table = st.selectbox(
+                "Target Table",
+                table_options,
+                index=default_target_idx,
+                key="lineage_target_table",
+            )
+
+        c3, c4, c5, c6 = st.columns([1.2, 1, 1, 1])
+        with c3:
+            lineage_direction = st.radio(
+                "Direction",
+                ["Downstream", "Upstream", "Both"],
+                horizontal=True,
+                key="lineage_direction",
+                help=(
+                    "Downstream follows FK references from source to target. "
+                    "Upstream follows tables that reference the current table."
+                ),
+            )
+        with c4:
+            lineage_max_hops = st.slider(
+                "Max hops",
+                min_value=1,
+                max_value=5,
+                value=3,
+                key="lineage_max_hops",
+            )
+        with c5:
+            lineage_max_paths = st.slider(
+                "Max paths",
+                min_value=1,
+                max_value=25,
+                value=10,
+                key="lineage_max_paths",
+            )
+        with c6:
+            lineage_same_module = st.checkbox(
+                "Same module only",
+                value=False,
+                key="lineage_same_module",
+            )
+
+        diagram_renderer = st.selectbox(
+            "Diagram",
+            ["Mermaid diagram", "ASCII diagram", "Hide diagram"],
+            key="lineage_diagram_renderer",
+        )
+        run_lineage = st.button("Find Relationship", type="primary", key="lineage_find")
+
+        if source_table == target_table:
+            st.info("Choose two different tables to search for a relationship path.")
+        elif run_lineage:
+            graph = build_fk_graph(
+                fk,
+                direction=lineage_direction,
+                same_module_only=lineage_same_module,
+                tables_df=tables,
+            )
+            lineage_paths = find_table_paths(
+                graph,
+                source_table,
+                target_table,
+                max_hops=int(lineage_max_hops),
+                max_paths=int(lineage_max_paths),
+            )
+            lineage_paths = enrich_lineage_paths(lineage_paths, fields, tables)
+
+            if not lineage_paths:
+                st.warning(
+                    f"No FK path found from **{source_table}** to **{target_table}** "
+                    f"within {lineage_max_hops} hop(s)."
+                )
+            else:
+                shortest_hops = min(p["hop_count"] for p in lineage_paths)
+                m1, m2, m3, m4 = st.columns(4)
+                m1.metric("Paths Found", len(lineage_paths))
+                m2.metric("Shortest Path", f"{shortest_hops} hop(s)")
+                m3.metric("Direction", lineage_direction)
+                m4.metric("Max Hops", lineage_max_hops)
+
+                lineage_df = lineage_paths_to_dataframe(lineage_paths)
+                if not lineage_df.empty:
+                    lineage_df["Source MSSQL Type"] = lineage_df["Source Type"].apply(iris_to_mssql)
+                    lineage_df["Target MSSQL Type"] = lineage_df["Target Key Type"].apply(iris_to_mssql)
+
+                st.markdown("---")
+                st.subheader("Path Details")
+                st.dataframe(lineage_df, width="stretch", hide_index=True)
+
+                for path in lineage_paths:
+                    table_chain = " → ".join(path.get("tables", []))
+                    with st.expander(
+                        f"Path {path['path_index']} · {path['hop_count']} hop(s): {table_chain}",
+                        expanded=path["path_index"] == 1,
+                    ):
+                        path_df = lineage_paths_to_dataframe([path])
+                        if not path_df.empty:
+                            path_df["Source MSSQL Type"] = path_df["Source Type"].apply(iris_to_mssql)
+                            path_df["Target MSSQL Type"] = path_df["Target Key Type"].apply(iris_to_mssql)
+                        st.dataframe(path_df, width="stretch", hide_index=True)
+
+                if diagram_renderer != "Hide diagram":
+                    st.markdown("---")
+                    st.subheader("Path Diagram")
+                    if diagram_renderer == "ASCII diagram":
+                        lineage_ascii = build_lineage_ascii(lineage_paths)
+                        st.code(lineage_ascii, language="text")
+                    else:
+                        lineage_mermaid = build_lineage_mermaid(lineage_paths, source_table, target_table)
+                        components.html(_module_mermaid_html(lineage_mermaid), height=520, scrolling=True)
+                        with st.expander("Raw Mermaid code"):
+                            st.code(lineage_mermaid, language="text")
 
 # ─── ANALYTICS ───────────────────────────────────────────────────────────────
 

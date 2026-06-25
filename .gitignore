@@ -6,6 +6,13 @@ iris_data_dict-*.csv
 
 # User-specific translation file (local data)
 translations.json
+tags.json
+metadata.json
+changelog.json
+usage_log.json
+
+# Runtime logs
+*.log
 
 # Local server config (contains machine-specific IP/port)
 .streamlit/config.toml
