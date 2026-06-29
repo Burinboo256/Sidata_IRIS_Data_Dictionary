@@ -62,6 +62,23 @@ Quick reference for where to find every feature in the app:
 
 ---
 
+## Documentation Index
+
+Use `doc/FEATURE_DOCUMENTATION_PLAN.md` as the coverage plan for the feature documentation set.
+
+| Area | Documentation |
+|---|---|
+| Architecture | `doc/ARCHITECTURE_SUMMARY.md`, `doc/APP_PY_ANALYSIS.md` |
+| App shell and state | `doc/APP_SHELL_STACK.md`, `doc/NAVIGATION_STATE_STACK.md` |
+| Data and configuration | `doc/DATA_STORAGE_STACK.md`, `doc/CONFIG_REFERENCE.md`, `doc/IMPORT_XLSX_STACK.md` |
+| Core pages | `doc/HOME_STACK.md`, `doc/SEARCH_STACK.md`, `doc/BROWSE_STACK.md`, `doc/TABLE_DETAIL_STACK.md` |
+| Table detail features | `doc/SCHEMA_EXPORT_STACK.md`, `doc/SQL_BUILDER_STACK.md`, `doc/THAI_DESCRIPTIONS_STACK.md`, `doc/GOVERNANCE_METADATA_STACK.md` |
+| Diagrams and lineage | `doc/FK_DIAGRAM_STACK.md`, `doc/COLUMN_LINEAGE_STACK.md`, `doc/LINEAGE_FINDER_STACK.md`, `doc/DIAGRAM_RENDERING_STACK.md` |
+| Analytics and audit | `doc/ANALYTICS_STACK.md`, `doc/USAGE_STATS_STACK.md`, `doc/CHANGELOG_STACK.md` |
+| Verification | `doc/MANUAL_VERIFICATION_GUIDE.md` |
+
+---
+
 ## Requirements
 
 ```bash

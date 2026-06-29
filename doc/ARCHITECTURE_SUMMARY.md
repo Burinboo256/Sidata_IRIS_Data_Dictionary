@@ -223,6 +223,21 @@ PostgreSQL tables include:
 
 ---
 
+## Detailed Feature Documentation
+
+| Layer | Detailed docs |
+|---|---|
+| Presentation and navigation | `APP_SHELL_STACK.md`, `HOME_STACK.md`, `NAVIGATION_STATE_STACK.md` |
+| Data access and configuration | `DATA_STORAGE_STACK.md`, `CONFIG_REFERENCE.md`, `IMPORT_XLSX_STACK.md` |
+| Discovery workflows | `SEARCH_STACK.md`, `BROWSE_STACK.md`, `TABLE_DETAIL_STACK.md` |
+| Table detail workflows | `SCHEMA_EXPORT_STACK.md`, `SQL_BUILDER_STACK.md`, `THAI_DESCRIPTIONS_STACK.md`, `GOVERNANCE_METADATA_STACK.md` |
+| Relationship and lineage workflows | `FK_DIAGRAM_STACK.md`, `COLUMN_LINEAGE_STACK.md`, `LINEAGE_FINDER_STACK.md`, `DIAGRAM_RENDERING_STACK.md` |
+| Reporting, audit, and operations | `ANALYTICS_STACK.md`, `USAGE_STATS_STACK.md`, `CHANGELOG_STACK.md`, `MANUAL_VERIFICATION_GUIDE.md` |
+
+Each stack document includes high-level behavior, detailed implementation ownership, `file:line` source references, data inputs and outputs, storage notes, and manual verification steps.
+
+---
+
 ## Summary
 
 This project is a Streamlit-based data catalog application.
