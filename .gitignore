@@ -11,6 +11,9 @@ metadata.json
 changelog.json
 usage_log.json
 
+# Local screenshots/images
+pic/
+
 # Runtime logs
 *.log
 
